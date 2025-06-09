@@ -4,6 +4,9 @@ project(concurrent_minhash C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+add_compile_options(-Wall -Wextra -pedantic -g)
+
+
 include_directories(include)
 
 add_subdirectory(src)
