@@ -7,7 +7,7 @@ void hash_functions_init(pairwise_hash *hf, uint64_t size) {
     for (i = 0; i < size; i++) {
         hf[i].a = random();
         hf[i].b = random();
-        hf[i].M = UINT64_MAX - 1;
+        hf[i].M = (1 << 31) - 1; // 2^31 - 1 biggest prime number in 32 bits. Using more bits may cause overflow
         hf[i].hash_function = pairwise_func;
     }
 }
