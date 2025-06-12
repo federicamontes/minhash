@@ -24,10 +24,10 @@ extern minhash_sketch *sketch;
 
 
 /** INIT AND CLEAR OPERATIONS */
-void minhash_init(minhash_sketch **mh, uint64_t sketch_size, int empty);
+void minhash_init(minhash_sketch **mh, pairwise_hash *hash_functions, uint64_t sketch_size, int empty);
 void hash_functions_init(pairwise_hash *hf, uint64_t size);
 void init_empty_values(minhash_sketch *sketch);
-void init_values(minhash_sketch **sketch, uint64_t size);
+void init_values(minhash_sketch *sketch, uint64_t size);
 void minhash_free(minhash_sketch *mh);
 
 
