@@ -19,11 +19,11 @@ void insert(minhash_sketch *sketch, uint64_t elem) {
 float query(minhash_sketch *sketch, minhash_sketch *otherSketch) {
 
 	uint64_t i;
-	float count = 0.f;
+	int count = 0;
 	for (i=0; i < sketch->size; i++) {
 		if (IS_EQUAL(sketch->sketch[i], otherSketch->sketch[i]))
 			count++;
 	}
-
-	return count/sketch->size;
+        fprintf(stderr, "actual count %d\n", count);
+	return count/(float)sketch->size;
 }
