@@ -1,11 +1,21 @@
 #include <stdio.h>
 #include <minhash.h>
+#include <configuration.h>
+
+struct minhash_configuration conf = {
+    .sketch_size = 128,          /// Number of hash functions / sketch size
+    .prime_modulus = (1 << 31) - 1,       /// Large prime for hashing (M)
+    .hash_function = 1,        /// ID for hash function pointer
+    .init_size = 0,                 /// Initial elements to insert (optional)
+};
+
 
 int main() {
     minhash_sketch *sketch;
     minhash_sketch *sketch2;
 
 
+    read_configuration(conf);
 
     pairwise_hash *hash_functions = malloc(128 * sizeof(pairwise_hash));
     if (hash_functions == NULL) {

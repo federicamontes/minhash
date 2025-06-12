@@ -1,6 +1,18 @@
 #include <configuration.h>
 #include <minhash.h>
+
 #include <math.h>
+#include <inttypes.h>
+
+
+
+void read_configuration(struct minhash_configuration global_config) {
+
+
+    // Example: print config
+    printf("Config: sketch_size=%" PRIu64 ", prime_modulus=%" PRIu64 "\n",
+           global_config.sketch_size, global_config.prime_modulus);
+}
 
 void hash_functions_init(pairwise_hash *hf, uint64_t size) {
     uint64_t i;
