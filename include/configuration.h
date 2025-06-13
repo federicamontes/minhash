@@ -9,8 +9,9 @@
 struct minhash_configuration {
     uint64_t sketch_size;          /// Number of hash functions / sketch size
     uint64_t prime_modulus;        /// Large prime for hashing (M)
-    uint64_t hash_function;   	   /// ID for hash function pointer
+    uint64_t hash_type;   	   /// ID for hash function pointer
     int init_size;                 /// Initial elements to insert (optional)
+    uint32_t k;                    /// Coefficient of k-wise hashing
 };
 
 
