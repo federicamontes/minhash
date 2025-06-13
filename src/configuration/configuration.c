@@ -93,14 +93,16 @@ void minhash_init(minhash_sketch **sketch, void *hash_functions, uint64_t sketch
         exit(1);
     }
 
-    /*(*sketch)->hash_functions = malloc(sketch_size * sizeof(pairwise_hash));
-    if ((*sketch)->hash_functions == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating hash functions\n");
-        exit(1);
-    }
 
-    
-    hash_functions_init((*sketch)->hash_functions, sketch_size);*/
+#ifdef LOCKS
+    pthread_mutex_init(&((*sketch)->lock), NULL);
+#endif
+
+#ifdef RW_LOCKS
+    pthread_rwlock_init(&((*sketch)->rw_lock), NULL);
+#endif
+
+
 	
     (*sketch)->hash_functions = hash_functions;
 
@@ -116,6 +118,14 @@ void minhash_init(minhash_sketch **sketch, void *hash_functions, uint64_t sketch
 
 
 void minhash_free(minhash_sketch *sketch) {
+
+#ifdef LOCKS
+    pthread_mutex_destroy(&sketch->lock);
+#endif
+
+#ifdef RW_LOCKS
+    pthread_rwlock_destroy(&sketch->rw_lock);
+#endif
     free(sketch->hash_functions);
     free(sketch->sketch);
 }
