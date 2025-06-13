@@ -1,54 +1,80 @@
 #include <stdio.h>
+#include <assert.h>
+#include <sys/time.h>
+
 #include <minhash.h>
 #include <configuration.h>
 
 struct minhash_configuration conf = {
     .sketch_size = 128,          /// Number of hash functions / sketch size
-    .prime_modulus = (1 << 31) - 1,       /// Large prime for hashing (M)
-    .hash_function = 1,        /// ID for hash function pointer
+    .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
+    .hash_type = 0,        /// ID for hash function pointer
     .init_size = 0,                 /// Initial elements to insert (optional)
+    .k = 3,
 };
 
 
-int main() {
-    minhash_sketch *sketch;
-    minhash_sketch *sketch2;
+int main(int argc, const char*argv[]) {
+
+    if (argc < 4) {
+        fprintf(stderr, 
+            "Parameter error! Make sure to pass <N: (int) number of insertions ,sketch_size: (int) size of the sketch, init_size: (int) starting size of set \n");
+        exit(1);
+    }
+
+    char *endptr;
+    long n_inserts = strtol(argv[1], &endptr, 10);
+    if (*endptr != '\0' || n_inserts <= 0){
+        fprintf(stderr, "n_inserts must be greater than zero!\n");
+        exit(1);
+    }
+
+    long ssize = strtol(argv[2], &endptr, 10);
+    if (*endptr != '\0' || ssize <= 0) {
+        fprintf(stderr, "Size of sketch must be greater than zero!\n");
+        exit(1);
+    }
+
+    long startsize = strtol(argv[3], &endptr, 10);
+    if (*endptr != '\0' || startsize <= 0) {
+        fprintf(stderr, "Starting size of set must be greater than zero!\n");
+        exit(1);
+    }
+    
+    printf("n, size, init size %ld, %ld, %ld \n", n_inserts, ssize, startsize);
+    conf.sketch_size = (uint64_t) ssize;
+    if (startsize > 0) conf.init_size = (uint64_t) startsize;
 
 
     read_configuration(conf);
 
-    pairwise_hash *hash_functions = malloc(128 * sizeof(pairwise_hash));
-    if (hash_functions == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating hash functions\n");
-        exit(1);
+
+
+    minhash_sketch *sketch;
+
+    void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
+
+    minhash_init(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
+
+    struct timeval start, end;
+
+    // Get the start time
+    gettimeofday(&start, NULL);
+
+    volatile uint64_t i;
+    for (i = 0; i < n_inserts; i++) {
+        insert(sketch, i+startsize);
     }
 
-    
-    hash_functions_init(hash_functions, 128);
+    // Get the end time
+    gettimeofday(&end, NULL);
 
+    // Compute elapsed time in milliseconds
+    double elapsed = (end.tv_sec - start.tv_sec) * 1000.0;      // seconds to ms
+    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
 
-    minhash_init(&sketch, hash_functions, 128, 50);
-    minhash_init(&sketch2, hash_functions, 128, 100);
+    printf("Elapsed time: %.3f ms\n", elapsed);
 
-    insert(sketch, 42);
-    insert(sketch, 99);
-
-    uint64_t i;
-    for (i = 0; i < 128; i++) {
-        fprintf(stderr, "sketch 1 values: %lu \t", sketch->sketch[i]);
-    }
-    fprintf(stderr, "\n");
-
-    insert(sketch2, 42);
-    insert(sketch2, 100);  // different element to differ the sketches
-
-    for (i = 0; i < 128; i++) {
-        fprintf(stderr, "sketch 2 values: %lu \t", sketch2->sketch[i]);
-    }
-    fprintf(stderr, "\n");
-
-    float sim = query(sketch, sketch2);
-    printf("Similarity: %.2f\n", sim);
 
     minhash_free(sketch);
     return 0;
