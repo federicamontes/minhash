@@ -17,15 +17,16 @@ typedef struct minhash_sketch {
 
 	uint64_t size;
 	uint64_t *sketch;
-	pairwise_hash *hash_functions;
+	uint32_t hash_type;
+	void *hash_functions;
 } minhash_sketch;
 
 extern minhash_sketch *sketch;
 
 
 /** INIT AND CLEAR OPERATIONS */
-void minhash_init(minhash_sketch **mh, pairwise_hash *hash_functions, uint64_t sketch_size, int empty);
-void hash_functions_init(pairwise_hash *hf, uint64_t size);
+void minhash_init(minhash_sketch **mh, void *hash_functions, uint64_t sketch_size, int empty, uint32_t hash_type);
+void* hash_functions_init(uint64_t hf_id, uint64_t size, uint32_t modulus, uint32_t k);
 void init_empty_values(minhash_sketch *sketch);
 void init_values(minhash_sketch *sketch, uint64_t size);
 void minhash_free(minhash_sketch *mh);
