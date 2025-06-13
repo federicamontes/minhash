@@ -41,13 +41,11 @@ int main(int argc, const char*argv[]) {
         exit(1);
     }
     
-    printf("n, size, init size %ld, %ld, %ld \n", n_inserts, ssize, startsize);
     conf.sketch_size = (uint64_t) ssize;
     if (startsize > 0) conf.init_size = (uint64_t) startsize;
 
 
     read_configuration(conf);
-
 
 
     minhash_sketch *sketch;
