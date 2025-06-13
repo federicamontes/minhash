@@ -1,5 +1,6 @@
 set(minhashcore_srcs
     serial/minhash-serial.c
+    parallel/minhash-parallel-lock.c
     utils/hash.c
     configuration/configuration.c
 )
