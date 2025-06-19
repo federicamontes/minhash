@@ -13,7 +13,9 @@ void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
     pthread_rwlock_wrlock(&(sketch->rw_lock));
 #endif
 
-	switch (sketch->hash_type) {
+        basic_insert(sketch->sketch, sketch->size, sketch->hash_functions, sketch->hash_type, elem);
+
+	/*switch (sketch->hash_type) {
 	case 1: {
 		kwise_hash *kwise_h_func = (kwise_hash *) sketch->hash_functions;
 		for (i = 0; i < sketch->size; i++) {
@@ -37,7 +39,7 @@ void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
 		}
 		break;
 	    }
-	}
+	}*/
 
 #ifdef LOCKS
     pthread_mutex_unlock(&(sketch->lock));
