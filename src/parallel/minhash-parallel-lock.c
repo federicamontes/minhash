@@ -5,8 +5,6 @@
 
 void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
 
-	uint64_t i;
-
 #ifdef LOCKS
     pthread_mutex_lock(&(sketch->lock));
 #elif defined(RW_LOCKS)
@@ -64,7 +62,7 @@ float query_parallel(minhash_sketch *sketch, minhash_sketch *otherSketch) {
     pthread_rwlock_rdlock(&(otherSketch->rw_lock));
 #endif
 
-	for (i=0; i < sketch->size; i++) {
+	for (i = 0; i < sketch->size; i++) {
 		if (IS_EQUAL(sketch->sketch[i], otherSketch->sketch[i]))
 			count++;
 	}
