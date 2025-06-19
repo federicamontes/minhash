@@ -150,11 +150,11 @@ int main(int argc, const char*argv[]) {
 
     // Get the start time
     gettimeofday(&start, NULL);
-
+    
     do_insert(sketch, n_inserts, startsize);
 
     long j;
-    for (j = 0; j < num_threads; j++) {
+    for (j = 0; j < num_threads - 1; j++) {
         pthread_join(threads[j], NULL);
     }
 
