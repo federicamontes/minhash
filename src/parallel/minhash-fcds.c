@@ -22,13 +22,17 @@ void init_empty_sketch_fcds(fcds_sketch *sketch) {
 }
 
 void init_values_fcds(fcds_sketch *sketch, uint64_t size) {
+/**
+* Insert the elements from 0 to size into the sketch that is, generate a sketch for the set composed by the elements in [0, size]
+*/
 
     uint64_t i, j;
-    for (i = 0; i < sketch->size; i++) {
+    for (i = 0; i < size; i++) {
         basic_insert(sketch->global_sketch, sketch->size, sketch->hash_functions, sketch->hash_type, i);
     }
+    // It is enough to copy the global sketch into the local one for te initialization. Avoids further insert in the sketches
     for (i = 0; i < sketch->N; i++){
-        for (j = 0; j < sketch->size; j++)
+        for (j = 0; j < sketch->size; j++) // Be carefull, since we are copying, the cycle scans the whole sketch (that is, sketch->size elements)
             sketch->local_sketches[i][j] = sketch->global_sketch[j];
     }
 }
@@ -60,31 +64,31 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
 
     (*sketch)->collect_sketch = malloc(sketch_size * sizeof(uint64_t));
     if ((*sketch)->collect_sketch == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating global_sketch array\n");
+        fprintf(stderr, "Error in malloc() when allocating collect_sketch array\n");
         exit(1);
     }
 
 
     (*sketch)->prop = malloc(N * sizeof(uint32_t));
     if ((*sketch)->prop == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating global_sketch array\n");
+        fprintf(stderr, "Error in malloc() when allocating prop array\n");
         exit(1);
     }
     
-    int i;
+    uint32_t i;
     for(i = 0; i < N; i++)
         (*sketch)->prop[i] = 0;
     
     (*sketch)->local_sketches = malloc(N * sizeof(void *));
     if ((*sketch)->local_sketches == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating global_sketch array\n");
+        fprintf(stderr, "Error in malloc() when allocating local_sketches array\n");
         exit(1);
-    }    
+    }    		
     
     for(i = 0; i < N; i++){
-        (*sketch)->local_sketches = malloc(N * sizeof(uint64_t));
-        if ((*sketch)->local_sketches == NULL) {
-            fprintf(stderr, "Error in malloc() when allocating local_sketch[%d] array\n", i);
+        (*sketch)->local_sketches[i] = malloc(sketch_size * sizeof(uint64_t));
+        if ((*sketch)->local_sketches[i] == NULL) {
+            fprintf(stderr, "Error in malloc() when allocating local_sketches[%d] array\n", i);
             exit(1);
         }
     }
@@ -100,7 +104,22 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
 
 
 
+void free_fcds(fcds_sketch *sketch){
 
+
+    free(sketch->global_sketch);
+    free(sketch->collect_sketch);
+    free(sketch->prop);
+    
+    uint32_t i;
+    for (i = 0; i < sketch->N; i++)
+        free(sketch->local_sketches[i]);
+    free(sketch->local_sketches);
+    
+    free(sketch);
+
+
+}
 
 
 
@@ -117,6 +136,8 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
 
 void insert_fcds(minhash_sketch *sketch, uint64_t elem) {
 
+    sketch = sketch;
+    elem = elem;
 
 }
 
@@ -124,5 +145,7 @@ void insert_fcds(minhash_sketch *sketch, uint64_t elem) {
 
 float query_fcds(minhash_sketch *sketch, minhash_sketch *otherSketch) {
 
-
+    sketch = otherSketch;
+    otherSketch = sketch;
+    return 0.0;
 }
