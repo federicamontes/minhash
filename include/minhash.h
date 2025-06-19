@@ -13,6 +13,8 @@
 #include <hash.h>
 #include <utils.h>
 
+#include <stdatomic.h>
+
 
 #define INFTY UINT64_MAX
 #define IS_EQUAL(x, y) ((x) == (y))
@@ -65,15 +67,18 @@ typedef struct fcds_sketch {
 	uint32_t b;		   // threshold for propagation
 	
 	uint64_t size;
-	uint64_t *global_sketch;   // access by query threads in read only fashion, T_N+1 only writer threads
+	uint64_t *global_sketch;   // accessed by query threads in read only fashion, T_N+1 only writer threads
 	
 	uint64_t *collect_sketch;  // use for double collect mechanism. TODO: check how it works since we have a single writers who writes multiple locations
 
+	// hash functions
 	uint32_t hash_type;
 	void *hash_functions;
 	
 	uint64_t **local_sketches; // position i is a sketch accessed by T_i and T_N+1 only
-	uint32_t *prop;            // synchronize access to local_sketches. TODO: check actual data type, it takes boolean values only
+	_Atomic uint32_t *prop;    // synchronize access to local_sketches: array of N atomic variables. TODO: check actual data type, it takes boolean values only
+	
+	uint32_t *insert_counters; // position i has the number of insertions done from the last propagation. When insertion_counter[i] == b, prop[i] is set to one and T_i waits for propagation
 
 
 } fcds_sketch;
@@ -83,10 +88,13 @@ typedef struct fcds_sketch {
 void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b);
 void init_empty_sketch_fcds(fcds_sketch *sketch);
 void init_values_fcds(fcds_sketch *sketch, uint64_t size);
+void free_fcds(fcds_sketch *sketch);
+
+void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_type, uint64_t sketch_size, uint32_t *insertion_counter, _Atomic uint32_t *prop, uint32_t b, uint64_t elem);
+void *propagator(void *arg);
 
 
-void insert_fcds(minhash_sketch *sketch, uint64_t elem);
-float query_fcds(minhash_sketch *sketch, minhash_sketch *otherSketch);
+float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch);
 
 
 
