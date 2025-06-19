@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 option(LOCKS "Enable lock-based sketch implementation" OFF)
 option(RW_LOCKS "Enable read-write locks for sketch implementation" OFF)
+option(FCDS "Enable fcds sketch implementation" OFF)
 
 add_compile_options(-Wall -Wextra -pedantic -g)
 
