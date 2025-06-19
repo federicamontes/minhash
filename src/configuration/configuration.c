@@ -126,6 +126,6 @@ void minhash_free(minhash_sketch *sketch) {
 #ifdef RW_LOCKS
     pthread_rwlock_destroy(&sketch->rw_lock);
 #endif
-    free(sketch->hash_functions);
+    // free(sketch->hash_functions); TODO: I removed it here since if we have two or more sketches it will cause double free
     free(sketch->sketch);
 }
