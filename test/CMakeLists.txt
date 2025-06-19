@@ -22,3 +22,13 @@ target_include_directories(test_parallel_lock PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 endif()
+
+
+if(FCDS)
+add_executable(test_fcds test_fcds.c)
+target_link_libraries(test_fcds PRIVATE minhashcore)
+target_include_directories(test_fcds PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+endif()
+
