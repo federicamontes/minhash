@@ -14,7 +14,7 @@ void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
 #endif
 
 	switch (sketch->hash_type) {
-	case 1:
+	case 1: {
 		kwise_hash *kwise_h_func = (kwise_hash *) sketch->hash_functions;
 		for (i = 0; i < sketch->size; i++) {
 			uint64_t val = kwise_h_func[i].hash_function(&kwise_h_func[i], elem);
@@ -24,8 +24,8 @@ void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
 		}
 
 		break;
-		
-	default:
+	    }	
+	default:  {
 		pairwise_hash *pairwise_h_func = (pairwise_hash *) sketch->hash_functions; /// pairwise_h_func is the pairwise struct
 		for (i = 0; i < sketch->size; i++) {
 			uint64_t val = pairwise_h_func[i].hash_function(&pairwise_h_func[i], elem);
@@ -36,6 +36,7 @@ void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
 
 		}
 		break;
+	    }
 	}
 
 #ifdef LOCKS
