@@ -128,4 +128,5 @@ void minhash_free(minhash_sketch *sketch) {
 #endif
     // free(sketch->hash_functions); TODO: I removed it here since if we have two or more sketches it will cause double free
     free(sketch->sketch);
+    free(sketch);
 }
