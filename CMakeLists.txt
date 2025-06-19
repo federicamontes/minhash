@@ -14,6 +14,7 @@ if(LOCKS AND RW_LOCKS)
 endif()
 
 # Enable pthread support
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 if(LOCKS)
