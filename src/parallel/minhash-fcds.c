@@ -74,18 +74,10 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         fprintf(stderr, "Error in malloc() when allocating prop array\n");
         exit(1);
     }
-
-    
-    (*sketch)->insert_counters = malloc(N * sizeof(uint32_t));
-    if ((*sketch)->insert_counters == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating insert_counters array\n");
-        exit(1);
-    }
     
     uint32_t i;
     for (i = 0; i < (*sketch)->N; i++) {
         __atomic_store_n(&(*sketch)->prop[i], 0, __ATOMIC_RELAXED); // TODO: check if atomic_relaxed is correct
-        (*sketch)->insert_counters[i] = 0; 
     }
     
     (*sketch)->local_sketches = malloc(N * sizeof(void *));
@@ -118,7 +110,6 @@ void free_fcds(fcds_sketch *sketch){
     free(sketch->global_sketch);
     free(sketch->collect_sketch);
     free(sketch->prop);
-    free(sketch->insert_counters);
     
     uint32_t i;
     for (i = 0; i < sketch->N; i++)

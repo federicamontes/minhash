@@ -77,8 +77,6 @@ typedef struct fcds_sketch {
 	
 	uint64_t **local_sketches; // position i is a sketch accessed by T_i and T_N+1 only
 	_Atomic uint32_t *prop;    // synchronize access to local_sketches: array of N atomic variables. TODO: check actual data type, it takes boolean values only
-	
-	uint32_t *insert_counters; // position i has the number of insertions done from the last propagation. When insertion_counter[i] == b, prop[i] is set to one and T_i waits for propagation
 
 
 } fcds_sketch;
