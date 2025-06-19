@@ -59,7 +59,7 @@ int main(int argc, const char*argv[]) {
     // Get the start time
     gettimeofday(&start, NULL);
 
-    volatile uint64_t i;
+    volatile uint32_t i;
     for (i = 0; i < n_inserts; i++) {
         insert(sketch, i+startsize);
     }
