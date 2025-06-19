@@ -5,7 +5,10 @@
 
 void insert(minhash_sketch *sketch, uint64_t elem) {
 
-	uint64_t i;
+
+        basic_insert(sketch->sketch, sketch->size, sketch->hash_functions, sketch->hash_type, elem);
+
+	/*uint64_t i;
 	switch (sketch->hash_type) {
 	case 1: {
 		kwise_hash *kwise_h_func = (kwise_hash *) sketch->hash_functions;
@@ -25,7 +28,7 @@ void insert(minhash_sketch *sketch, uint64_t elem) {
 		}
 		break;
 	    }
-	}
+	}*/
 
 }
 
