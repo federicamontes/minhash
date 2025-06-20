@@ -32,9 +32,24 @@ int basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t
 	return insertion;
 }
 
-void merge(uint64_t *sketch, uint64_t *other_sketch, uint64_t size) {
+void merge(uint64_t *sketch, const uint64_t *other_sketch, uint64_t size) {
 // Merge other_sketch and sketch. The resulting sketch is written into sketch itself
 	uint64_t i;
 	for (i = 0; i < size; i++)
 	   if (sketch[i] > other_sketch[i]) sketch[i] = other_sketch[i];
+}
+
+uint64_t *copy_sketch(const uint64_t *sketch, uint64_t size) {
+// return a pointer to a copy of the sketch
+	uint64_t *copy = malloc(size * sizeof(uint64_t));
+	if (copy == NULL) {
+	        fprintf(stderr, "Error in malloc() when allocating copy array in copy_sketch\n");
+	        exit(1);
+	}
+    
+    	uint64_t i;
+	for (i = 0; i < size; i++)
+	   copy[i] = sketch[i];
+	
+	return copy;
 }

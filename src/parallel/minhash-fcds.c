@@ -171,11 +171,55 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
 
 
 
+
+
+uint64_t *get_global_sketch(fcds_sketch *sketch){
+/** return a copy of global_sketch in sketch.
+* The actual algorithm is an impementation of a double collect mechanism in which a copy of global_sketch is generated, then it is compared with global_sketch to check
+* if a modification occured in the middle. If so, the last sketch in the shared list is returned.
+* This algorithm should guarantee overall correctness since the returned sketchis a valid state in the query's time interval
+*/
+
+  uint64_t *copy = copy_sketch(sketch->global_sketch, sketch->size);
+  
+  // Check if global was changed while copy was generated
+  uint64_t i;
+  int valid = 1;  // a boolean variable, it is true if copy is a valid sketch (i.e., it can be returned)
+  for (i = 0; i < sketch->size; i++){
+      if (copy[i] != sketch->global_sketch[i]){
+          valid = 0;  // global_sketch has been changed during the copy_sketch function. It is not safe to return it
+          break;
+      }
+  }
+  
+  if (!valid){
+     // Go to the shared list and take a copy of the last element
+  
+  }
+  
+  
+  return copy;
+
+
+}
+
 float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) {
 
-    sketch = otherSketch;
-    otherSketch = sketch;
-    return 0.0;
+    uint64_t *first = get_global_sketch(sketch);
+    uint64_t *second = get_global_sketch(otherSketch);
+    
+    uint64_t i;
+    int count = 0;
+    for (i=0; i < sketch->size; i++) {
+	if (IS_EQUAL(first[i], second[i]))
+	    count++;
+    }
+    fprintf(stderr, "[query] actual count %d\n", count);
+    
+    free(first); // they are just array, standard free suffices
+    free(second);
+    return count/(float)sketch->size;
+
 }
 
 
@@ -220,6 +264,13 @@ void *propagator(void *arg) {
                 // 2. Notify thread T_i the propagation is ended by setting prop[i] to 0
                 // TODO Ensure any shared data accessed here is handled with appropriate synchronization (e.g., if global_sketch is lock-free or protected by its own means).
 
+
+		// DOUBLE Collect implementation.
+		// Before merge, the propagator publish a copy of the global sketch. In this manner, a reader can read that copy if the global sketch was modified in the middle of the query
+		uint64_t *global_copy = copy_sketch(sketch->global_sketch, sketch->size);
+		// Insert global_copy at the end of a shared list.
+		//TODO publish_sketch()
+		
                 merge(sketch->global_sketch, sketch->local_sketches[i], sketch->size); // TODO: it does not take into account reader threads concurrent to this one
 
                 // After propagation is complete, atomically set the flag back to 0.
