@@ -70,6 +70,7 @@ typedef struct fcds_sketch {
 	uint64_t size;
 	uint64_t *global_sketch;   // accessed by query threads in read only fashion, T_N+1 only writer threads
 	
+	// TODO change type, it must be a list node from sketch_list
 	uint64_t *collect_sketch;  // use for double collect mechanism. TODO: check how it works since we have a single writers who writes multiple locations
 
 	// hash functions
@@ -78,7 +79,6 @@ typedef struct fcds_sketch {
 	
 	uint64_t **local_sketches; // position i is a sketch accessed by T_i and T_N+1 only
 	_Atomic uint32_t *prop;    // synchronize access to local_sketches: array of N atomic variables. TODO: check actual data type, it takes boolean values only
-
 
 } fcds_sketch;
 
