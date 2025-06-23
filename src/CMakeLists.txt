@@ -16,6 +16,7 @@ endif()
 if(FCDS)
   set(minhashcore_srcs ${minhashcore_srcs}
       fcds/minhash-fcds.c
+      datatypes/sketch_list.c
     )
 endif()
 
