@@ -10,13 +10,13 @@ void init_empty_sketch_fcds(fcds_sketch *sketch) {
 
     uint64_t i, j;
     for (i=0; i < sketch->size; i++){
-	sketch->global_sketch[i] = INFTY;
-	sketch->collect_sketch[i] = INFTY; // should not be needed since the values of the global are copied here
+	   sketch->global_sketch[i] = INFTY;
+	   sketch->collect_sketch[i] = INFTY; // should not be needed since the values of the global are copied here
     }
 	
     for(i = 0; i < sketch->N; i++){
         for (j = 0; j < sketch->size; j++){
-	    sketch->local_sketches[i][j] = INFTY;
+	       sketch->local_sketches[i][j] = INFTY;
         }
     }
 }
@@ -62,6 +62,7 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         exit(1);
     }
 
+    //TODO rivedere
     (*sketch)->collect_sketch = malloc(sketch_size * sizeof(uint64_t));
     if ((*sketch)->collect_sketch == NULL) {
         fprintf(stderr, "Error in malloc() when allocating collect_sketch array\n");
@@ -80,7 +81,7 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         __atomic_store_n(&(*sketch)->prop[i], 0, __ATOMIC_RELAXED); // TODO: check if atomic_relaxed is correct
     }
     
-    (*sketch)->local_sketches = malloc(N * sizeof(void *));
+    (*sketch)->local_sketches = malloc(N * sizeof(uint64_t *));
     if ((*sketch)->local_sketches == NULL) {
         fprintf(stderr, "Error in malloc() when allocating local_sketches array\n");
         exit(1);
