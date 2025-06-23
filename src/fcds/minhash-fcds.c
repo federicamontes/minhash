@@ -144,6 +144,7 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
     if(*insertion_counter == b){
         // start the propagation proceedure 
         *insertion_counter = 0;
+        printf("Done %u inserts\n", b);
         // We've reached or exceeded the threshold.
         // Try to atomically set the prop_flag to 1 (Propagation Needed).
         // Use CAS to ensure only one "request" is made at a time.
@@ -187,15 +188,18 @@ float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) {
 
 
 
-void *propagator(void *arg) {
-    fcds_sketch *sketch = (fcds_sketch *)arg;
+void *propagator(fcds_sketch *sketch) {
+    //fcds_sketch *sketch = (fcds_sketch *)arg;
+
+    printf("Propagator enter!\n");
 
     while (1) { // TODO; Loop indefinitely or until a termination condition
         int work_found_this_cycle = 0; // TODO: check if it is needed. To decide if the propagator should sleep
 
+        
         // Iterate through all worker threads to check their prop
         for (uint32_t i = 0; i < sketch->N; i++) {
-            _Atomic uint32_t *current_prop = &sketch->prop[i];
+            _Atomic uint32_t *current_prop = &(sketch->prop[i]);
 
             uint32_t expected_flag = 1; // We are looking for a flag that is set to 1 (Propagation Needed)
             uint32_t desired_flag = 2;  // We want to set it to 2 (Executing Propagation)
@@ -211,23 +215,25 @@ void *propagator(void *arg) {
                                             0,                 // False for "weak" CAS (use strong CAS)
                                             __ATOMIC_ACQ_REL,  // Memory order for success: Acquire (for subsequent reads) + Release (for preceding writes)
                                             __ATOMIC_RELAXED)) { // Memory order for failure: Relaxed (no special ordering needed)
-                // If we successfully set the flag to 2, it means we "claimed" this propagation request.
-                work_found_this_cycle = 1;
-                printf("Propagator: Processing propagation request for thread %u\n", i);
+                    // If we successfully set the flag to 2, it means we "claimed" this propagation request.
+                    work_found_this_cycle = 1;
+                    printf("Propagator: Processing propagation request for thread %u\n", i);
 
-                // --- Perform the actual propagation logic here ---
-                // This would typically involve:
-                // 1. Merging sketch->local_sketches[i] into sketch->global_sketch
-                // 2. Notify thread T_i the propagation is ended by setting prop[i] to 0
-                // TODO Ensure any shared data accessed here is handled with appropriate synchronization (e.g., if global_sketch is lock-free or protected by its own means).
+                    // --- Perform the actual propagation logic here ---
+                    // This would typically involve:
+                    // 1. Merging sketch->local_sketches[i] into sketch->global_sketch
+                    // 2. Notify thread T_i the propagation is ended by setting prop[i] to 0
+                    // TODO Ensure any shared data accessed here is handled with appropriate synchronization (e.g., if global_sketch is lock-free or protected by its own means).
 
-                merge(sketch->global_sketch, sketch->local_sketches[i], sketch->size); // TODO: it does not take into account reader threads concurrent to this one
-
-                // After propagation is complete, atomically set the flag back to 0.
-                // This signals to the worker thread that the propagation is finished and it can proceed.
-                // __ATOMIC_RELEASE ensures all memory effects of the propagation (e.g., updates to global_sketch)
-                // are visible to other threads that later acquire (read) this flag.
-                __atomic_store_n(current_prop, 0, __ATOMIC_RELEASE);
+                    if (merge(sketch->global_sketch, sketch->local_sketches[i], sketch->size)); // TODO: it does not take into account reader threads concurrent to this one
+                        /// global sketch print
+                        if(0) minhash_print(sketch);
+                    
+                    // After propagation is complete, atomically set the flag back to 0.
+                    // This signals to the worker thread that the propagation is finished and it can proceed.
+                    // __ATOMIC_RELEASE ensures all memory effects of the propagation (e.g., updates to global_sketch)
+                    // are visible to other threads that later acquire (read) this flag.
+                    __atomic_store_n(current_prop, 0, __ATOMIC_RELEASE);
             }
             // If the CAS fails, it means:
             //   a) The flag was not 1 (e.g., it was 0, meaning no propagation needed), or 2, meaning another propagator is handling it (Impossible in our setting).
@@ -237,7 +243,7 @@ void *propagator(void *arg) {
         // If no work was found in this cycle, sleep briefly to avoid busy-waiting.
         // This is a common strategy for a polling thread when there's no event-based wake-up mechanism.
         if (!work_found_this_cycle) {
-            usleep(1000); // Sleep for 1ms. Adjust as needed.
+            //usleep(1000); // Sleep for 1ms. Adjust as needed.
         }
     }
     return NULL;
