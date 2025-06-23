@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
-#if defined(LOCKS) || defined(RW_LOCKS)
+#if defined(LOCKS) || defined(RW_LOCKS) || defined(FCDS)
     #include <pthread.h>
 #endif
 
@@ -58,12 +58,13 @@ float query_parallel(minhash_sketch *sketch, minhash_sketch *otherSketch);
 
 
 
+#ifdef FCDS 
 
 /** FAST CONCURRENT DATA STRUCTURES */
 
 /* unoptimized version with a single local sketch */
 typedef struct fcds_sketch {
-        uint32_t N;		   // number of writing threads
+    uint32_t N;		   // number of writing threads
 	uint32_t b;		   // threshold for propagation
 	
 	uint64_t size;
@@ -94,7 +95,7 @@ void *propagator(void *arg);
 
 float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch);
 
-
+#endif
 
 
 
