@@ -2,7 +2,7 @@
 
 int basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t hash_type, uint64_t elem) {
 
-        int insertion = 0;  // boolean function that takes track if an insertion in the min hash is actually occured
+        int insertion = 0;  // boolean function that takes track if at least one element insertion in the min hash has actually occured
 	uint64_t i;
 	switch (hash_type) {
 	case 1: {
