@@ -90,7 +90,7 @@ void init_values_fcds(fcds_sketch *sketch, uint64_t size);
 void free_fcds(fcds_sketch *sketch);
 
 void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_type, uint64_t sketch_size, uint32_t *insertion_counter, _Atomic uint32_t *prop, uint32_t b, uint64_t elem);
-void *propagator(void *arg);
+void *propagator(fcds_sketch *arg);
 
 
 float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch);
