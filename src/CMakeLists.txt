@@ -1,13 +1,23 @@
 set(minhashcore_srcs
     serial/minhash-serial.c
     configuration/configuration.c
-    parallel/minhash-parallel-lock.c
     utils/hash.c
     utils/utils.c
     
-    parallel/minhash-fcds.c
 )
 
+if(LOCKS OR RW_LOCKS)
+  set(minhashcore_srcs ${minhashcore_srcs}
+      parallel/minhash-parallel-lock.c
+
+    )
+endif()
+
+if(FCDS)
+  set(minhashcore_srcs ${minhashcore_srcs}
+      parallel/minhash-fcds.c
+    )
+endif()
 
 add_library(minhashcore STATIC ${minhashcore_srcs})
 
