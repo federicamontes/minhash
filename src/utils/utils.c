@@ -32,9 +32,14 @@ int basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t
 	return insertion;
 }
 
-void merge(uint64_t *sketch, uint64_t *other_sketch, uint64_t size) {
+int merge(uint64_t *sketch, uint64_t *other_sketch, uint64_t size) {
 // Merge other_sketch and sketch. The resulting sketch is written into sketch itself
 	uint64_t i;
+	int ismerge = 0;
 	for (i = 0; i < size; i++)
-	   if (sketch[i] > other_sketch[i]) sketch[i] = other_sketch[i];
+	   if (sketch[i] > other_sketch[i]) {
+	   	sketch[i] = other_sketch[i];
+	   	ismerge = 1;
+	   }
+	return ismerge;
 }
