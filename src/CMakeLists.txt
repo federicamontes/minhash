@@ -15,7 +15,7 @@ endif()
 
 if(FCDS)
   set(minhashcore_srcs ${minhashcore_srcs}
-      parallel/minhash-fcds.c
+      fcds/minhash-fcds.c
     )
 endif()
 
