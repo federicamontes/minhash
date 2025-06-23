@@ -31,7 +31,7 @@ pthread_barrier_t barrier;
 void minhash_print(fcds_sketch *sketch) {
 
     uint64_t i;
-    printf("Value: \n");
+    printf("Global sketch Value: \n");
     for(i=0; i < sketch->size; i++) {
         printf(" %lu, ", sketch->global_sketch[i]);
     }
@@ -61,13 +61,22 @@ void *thread_insert(void *arg) {
     local_insert(local_sketch, t_sketch->hash_functions, t_sketch->hash_type, t_sketch->size,
         propi, targ->n_inserts, targ->startsize, t_sketch->b);
     
-
+if (0) {
     uint64_t i;
-    printf("Value: \n");
+    printf("Local sketch of %u : \n", targ->tid);
     for(i=0; i < t_sketch->size; i++) {
         printf(" %lu, ", local_sketch[i]);
     }
     printf("\n");
+}
+    return NULL;
+}
+
+void *propagator_routine(void *arg) {
+    thread_arg_t *targ = (thread_arg_t *)arg;
+
+    fcds_sketch *t_sketch = targ->sketch;
+    propagator(t_sketch);
 
     return NULL;
 }
@@ -132,11 +141,11 @@ int main(int argc, const char*argv[]) {
     pthread_barrier_init(&barrier, NULL, num_threads);
 
 
-    pthread_t threads[num_threads];
-    thread_arg_t targs[num_threads]; 
+    pthread_t threads[conf.N+1]; // consider #writers + propagator
+    thread_arg_t targs[conf.N+1]; 
 
-    uint64_t chunk_size = n_inserts / num_threads;
-    uint64_t remainder = n_inserts % num_threads;
+    uint64_t chunk_size = n_inserts / conf.N;
+    uint64_t remainder = n_inserts % conf.N;
     uint64_t current_start = startsize;
     uint64_t inserts_for_thread = chunk_size;
 
@@ -158,10 +167,18 @@ int main(int argc, const char*argv[]) {
         }
     }
 
-    if (i == num_threads - 1) {
-        inserts_for_thread += remainder;  // Last thread takes the leftover
-    }
     pthread_barrier_wait(&barrier);
+
+
+    if (i == conf.N) {
+        targs[i].tid = i;
+        targs[i].sketch = sketch;
+        int rc = pthread_create(&threads[i], NULL, propagator_routine, &targs[i]);
+        if (rc) {
+            fprintf(stderr, "Error creating thread %lu\n", i);
+            exit(1);
+        }
+    }
 
     struct timeval start, end;
 
@@ -184,8 +201,6 @@ int main(int argc, const char*argv[]) {
     printf("Elapsed time: %.3f s\n", elapsed);
 
     pthread_barrier_destroy(&barrier);
-
-    minhash_print(sketch);
 
 
     printf("Test passed!\n");
