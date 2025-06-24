@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
-#if defined(LOCKS) || defined(RW_LOCKS)
+#if defined(LOCKS) || defined(RW_LOCKS) || defined(FCDS)
     #include <pthread.h>
 #endif
 
@@ -58,17 +58,19 @@ float query_parallel(minhash_sketch *sketch, minhash_sketch *otherSketch);
 
 
 
+#ifdef FCDS 
 
 /** FAST CONCURRENT DATA STRUCTURES */
 
 /* unoptimized version with a single local sketch */
 typedef struct fcds_sketch {
-        uint32_t N;		   // number of writing threads
+    uint32_t N;		   // number of writing threads
 	uint32_t b;		   // threshold for propagation
 	
 	uint64_t size;
 	uint64_t *global_sketch;   // accessed by query threads in read only fashion, T_N+1 only writer threads
 	
+	// TODO change type, it must be a list node from sketch_list
 	uint64_t *collect_sketch;  // use for double collect mechanism. TODO: check how it works since we have a single writers who writes multiple locations
 
 	// hash functions
@@ -77,7 +79,6 @@ typedef struct fcds_sketch {
 	
 	uint64_t **local_sketches; // position i is a sketch accessed by T_i and T_N+1 only
 	_Atomic uint32_t *prop;    // synchronize access to local_sketches: array of N atomic variables. TODO: check actual data type, it takes boolean values only
-
 
 } fcds_sketch;
 
@@ -89,12 +90,12 @@ void init_values_fcds(fcds_sketch *sketch, uint64_t size);
 void free_fcds(fcds_sketch *sketch);
 
 void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_type, uint64_t sketch_size, uint32_t *insertion_counter, _Atomic uint32_t *prop, uint32_t b, uint64_t elem);
-void *propagator(void *arg);
+void *propagator(fcds_sketch *arg);
 
 uint64_t *get_global_sketch(fcds_sketch *sketch);
 float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch);
 
-
+#endif
 
 
 

@@ -10,13 +10,13 @@ void init_empty_sketch_fcds(fcds_sketch *sketch) {
 
     uint64_t i, j;
     for (i=0; i < sketch->size; i++){
-	sketch->global_sketch[i] = INFTY;
-	sketch->collect_sketch[i] = INFTY; // should not be needed since the values of the global are copied here
+	   sketch->global_sketch[i] = INFTY;
+	   sketch->collect_sketch[i] = INFTY; // should not be needed since the values of the global are copied here
     }
 	
     for(i = 0; i < sketch->N; i++){
         for (j = 0; j < sketch->size; j++){
-	    sketch->local_sketches[i][j] = INFTY;
+	       sketch->local_sketches[i][j] = INFTY;
         }
     }
 }
@@ -37,7 +37,6 @@ void init_values_fcds(fcds_sketch *sketch, uint64_t size) {
     }
 }
 
-//void minhash_init(minhash_sketch **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type) {
 
 void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b){
     
@@ -62,6 +61,7 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         exit(1);
     }
 
+    //TODO rivedere
     (*sketch)->collect_sketch = malloc(sketch_size * sizeof(uint64_t));
     if ((*sketch)->collect_sketch == NULL) {
         fprintf(stderr, "Error in malloc() when allocating collect_sketch array\n");
@@ -80,7 +80,7 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         __atomic_store_n(&(*sketch)->prop[i], 0, __ATOMIC_RELAXED); // TODO: check if atomic_relaxed is correct
     }
     
-    (*sketch)->local_sketches = malloc(N * sizeof(void *));
+    (*sketch)->local_sketches = malloc(N * sizeof(uint64_t *));
     if ((*sketch)->local_sketches == NULL) {
         fprintf(stderr, "Error in malloc() when allocating local_sketches array\n");
         exit(1);
@@ -108,7 +108,7 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
 void free_fcds(fcds_sketch *sketch){
 
     free(sketch->global_sketch);
-    free(sketch->collect_sketch);
+    free(sketch->collect_sketch); 
     free(sketch->prop);
     
     uint32_t i;
@@ -143,6 +143,7 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
     if(*insertion_counter == b){
         // start the propagation proceedure 
         *insertion_counter = 0;
+        printf("Done %u inserts\n", b);
         // We've reached or exceeded the threshold.
         // Try to atomically set the prop_flag to 1 (Propagation Needed).
         // Use CAS to ensure only one "request" is made at a time.
@@ -230,15 +231,17 @@ float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) {
 
 
 
-void *propagator(void *arg) {
-    fcds_sketch *sketch = (fcds_sketch *)arg;
+void *propagator(fcds_sketch *sketch) {
+    //fcds_sketch *sketch = (fcds_sketch *)arg;
+
+    printf("Propagator enter!\n");
 
     while (1) { // TODO; Loop indefinitely or until a termination condition
-        int work_found_this_cycle = 0; // TODO: check if it is needed. To decide if the propagator should sleep
 
+        
         // Iterate through all worker threads to check their prop
         for (uint32_t i = 0; i < sketch->N; i++) {
-            _Atomic uint32_t *current_prop = &sketch->prop[i];
+            _Atomic uint32_t *current_prop = &(sketch->prop[i]);
 
             uint32_t expected_flag = 1; // We are looking for a flag that is set to 1 (Propagation Needed)
             uint32_t desired_flag = 2;  // We want to set it to 2 (Executing Propagation)
@@ -254,41 +257,39 @@ void *propagator(void *arg) {
                                             0,                 // False for "weak" CAS (use strong CAS)
                                             __ATOMIC_ACQ_REL,  // Memory order for success: Acquire (for subsequent reads) + Release (for preceding writes)
                                             __ATOMIC_RELAXED)) { // Memory order for failure: Relaxed (no special ordering needed)
-                // If we successfully set the flag to 2, it means we "claimed" this propagation request.
-                work_found_this_cycle = 1;
-                printf("Propagator: Processing propagation request for thread %u\n", i);
 
-                // --- Perform the actual propagation logic here ---
-                // This would typically involve:
-                // 1. Merging sketch->local_sketches[i] into sketch->global_sketch
-                // 2. Notify thread T_i the propagation is ended by setting prop[i] to 0
-                // TODO Ensure any shared data accessed here is handled with appropriate synchronization (e.g., if global_sketch is lock-free or protected by its own means).
+                    // If we successfully set the flag to 2, it means we "claimed" this propagation request.
+                    printf("Propagator: Processing propagation request for thread %u\n", i);
 
+                    // --- Perform the actual propagation logic here ---
+                    // This would typically involve:
+                    // 1. Merging sketch->local_sketches[i] into sketch->global_sketch
+                    // 2. Notify thread T_i the propagation is ended by setting prop[i] to 0
+                    // TODO Ensure any shared data accessed here is handled with appropriate synchronization (e.g., if global_sketch is lock-free or protected by its own means).
 
-		// DOUBLE Collect implementation.
-		// Before merge, the propagator publish a copy of the global sketch. In this manner, a reader can read that copy if the global sketch was modified in the middle of the query
-		uint64_t *global_copy = copy_sketch(sketch->global_sketch, sketch->size);
-		// Insert global_copy at the end of a shared list.
-		//TODO publish_sketch()
-		
-                merge(sketch->global_sketch, sketch->local_sketches[i], sketch->size); // TODO: it does not take into account reader threads concurrent to this one
+                    if (merge(sketch->global_sketch, sketch->local_sketches[i], sketch->size)) { // TODO: it does not take into account reader threads concurrent to this one
+                        /// global sketch print
+                        if(0) minhash_print(sketch);
 
-                // After propagation is complete, atomically set the flag back to 0.
-                // This signals to the worker thread that the propagation is finished and it can proceed.
-                // __ATOMIC_RELEASE ensures all memory effects of the propagation (e.g., updates to global_sketch)
-                // are visible to other threads that later acquire (read) this flag.
-                __atomic_store_n(current_prop, 0, __ATOMIC_RELEASE);
+                        //TODO create new node in list of sketch_list
+                    }
+
+                    // After propagation is complete, atomically set the flag back to 0.
+                    // This signals to the worker thread that the propagation is finished and it can proceed.
+                    // __ATOMIC_RELEASE ensures all memory effects of the propagation (e.g., updates to global_sketch)
+                    // are visible to other threads that later acquire (read) this flag.
+                    __atomic_store_n(current_prop, 0, __ATOMIC_RELEASE);
+
             }
             // If the CAS fails, it means:
             //   a) The flag was not 1 (e.g., it was 0, meaning no propagation needed), or 2, meaning another propagator is handling it (Impossible in our setting).
             //   b) In either case, we don't proceed with propagation for this 'i' in this iteration.
+
         }
 
-        // If no work was found in this cycle, sleep briefly to avoid busy-waiting.
-        // This is a common strategy for a polling thread when there's no event-based wake-up mechanism.
-        if (!work_found_this_cycle) {
-            usleep(1000); // Sleep for 1ms. Adjust as needed.
-        }
+        // TODO here propagator thread must check if 
+        // memory reclamation is possible in sketch_list
+
     }
     return NULL;
 }

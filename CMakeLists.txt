@@ -20,17 +20,14 @@ find_package(Threads REQUIRED)
 
 if(LOCKS)
     add_compile_definitions(LOCKS)
-	#add_compile_options(-pthread)
 endif()
 
 if(RW_LOCKS)
     add_compile_definitions(RW_LOCKS)
-	#add_compile_options(-pthread)
 endif()
 
 if(FCDS)
-    add_compile_definitions(RW_LOCKS)
-	#add_compile_options(-pthread)
+    add_compile_definitions(FCDS)
 endif()
 
 

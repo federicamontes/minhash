@@ -13,31 +13,7 @@ void insert_parallel(minhash_sketch *sketch, uint64_t elem) {
 
         basic_insert(sketch->sketch, sketch->size, sketch->hash_functions, sketch->hash_type, elem);
 
-	/*switch (sketch->hash_type) {
-	case 1: {
-		kwise_hash *kwise_h_func = (kwise_hash *) sketch->hash_functions;
-		for (i = 0; i < sketch->size; i++) {
-			uint64_t val = kwise_h_func[i].hash_function(&kwise_h_func[i], elem);
-			if (val < sketch->sketch[i])
-				sketch->sketch[i] = val;
-
-		}
-
-		break;
-	    }	
-	default:  {
-		pairwise_hash *pairwise_h_func = (pairwise_hash *) sketch->hash_functions; /// pairwise_h_func is the pairwise struct
-		for (i = 0; i < sketch->size; i++) {
-			uint64_t val = pairwise_h_func[i].hash_function(&pairwise_h_func[i], elem);
-			//printf("val %lu  --- sketch %lu\n",  val , sketch->sketch[i]);
-		  	
-			if (val < sketch->sketch[i])
-				sketch->sketch[i] = val;
-
-		}
-		break;
-	    }
-	}*/
+	
 
 #ifdef LOCKS
     pthread_mutex_unlock(&(sketch->lock));

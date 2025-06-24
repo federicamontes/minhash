@@ -2,7 +2,7 @@
 
 int basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t hash_type, uint64_t elem) {
 
-        int insertion = 0;  // boolean function that takes track if an insertion in the min hash is actually occured
+        int insertion = 0;  // boolean function that takes track if at least one element insertion in the min hash has actually occured
 	uint64_t i;
 	switch (hash_type) {
 	case 1: {
@@ -32,11 +32,17 @@ int basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t
 	return insertion;
 }
 
-void merge(uint64_t *sketch, const uint64_t *other_sketch, uint64_t size) {
+
+int merge(uint64_t *sketch, uint64_t *other_sketch, uint64_t size) {
 // Merge other_sketch and sketch. The resulting sketch is written into sketch itself
 	uint64_t i;
+	int ismerge = 0;
 	for (i = 0; i < size; i++)
-	   if (sketch[i] > other_sketch[i]) sketch[i] = other_sketch[i];
+	   if (sketch[i] > other_sketch[i]) {
+	   	sketch[i] = other_sketch[i];
+	   	ismerge = 1;
+	   }
+	return ismerge;
 }
 
 uint64_t *copy_sketch(const uint64_t *sketch, uint64_t size) {
