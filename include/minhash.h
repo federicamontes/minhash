@@ -78,8 +78,12 @@ typedef struct fcds_sketch {
 	uint64_t **local_sketches; // position i is a sketch accessed by T_i and T_N+1 only
 	_Atomic uint32_t *prop;    // synchronize access to local_sketches: array of N atomic variables. TODO: check actual data type, it takes boolean values only
 
-	// TODO change type, it must be a list node from sketch_list
-	_Atomic unsigned long *sketch_list;  // use for double collect mechanism. TODO: check how it works since we have a single writers who writes multiple locations
+	// TODO CHECK
+	// This pointer itself can be atomically updated (64-bit CAS).
+        // The *content* it points to (the tagged_pointer union) can be 128-bit CAS'd.
+        // No `alignas(16)` on *this* pointer, as it's a 64-bit pointer.
+        // The *data* it points to will be 16-byte aligned.
+        _Atomic(union tagged_pointer*) sketch_list;  // use for double collect mechanism. TODO: check how it works since we have a single writers who writes multiple locations
 
 
 } fcds_sketch;

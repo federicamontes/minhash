@@ -61,14 +61,17 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
     }
 
     // init double collect list for versioned sketch
-    (*sketch)->sketch_list = malloc(sizeof(unsigned long) * 2);
+    /*(*sketch)->sketch_list = malloc(sizeof(unsigned long) * 2);
     if ((*sketch)->sketch_list == NULL) {
         fprintf(stderr, "Error in allocating sketch list for double collect \n");
         exit(1);  
     }
     (*sketch)->sketch_list[0] = NULL;
-    (*sketch)->sketch_list[1] = 0;
-
+    (*sketch)->sketch_list[1] = 0;*/
+    
+    // Initialize the head of the list to point to a null record
+    union tagged_pointer *tp = alloc_aligned_tagged_pointer(NULL, 0);
+    __atomic_store_n(&((*sketch)->sketch_list), tp, __ATOMIC_RELEASE);
 
 
     (*sketch)->prop = malloc(N * sizeof(_Atomic uint32_t));
