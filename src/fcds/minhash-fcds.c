@@ -11,7 +11,6 @@ void init_empty_sketch_fcds(fcds_sketch *sketch) {
     uint64_t i, j;
     for (i=0; i < sketch->size; i++){
 	   sketch->global_sketch[i] = INFTY;
-	   sketch->collect_sketch[i] = INFTY; // should not be needed since the values of the global are copied here
     }
 	
     for(i = 0; i < sketch->N; i++){
@@ -61,12 +60,15 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         exit(1);
     }
 
-    //TODO rivedere
-    (*sketch)->collect_sketch = malloc(sketch_size * sizeof(uint64_t));
-    if ((*sketch)->collect_sketch == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating collect_sketch array\n");
-        exit(1);
+    // init double collect list for versioned sketch
+    (*sketch)->sketch_list = malloc(sizeof(unsigned long) * 2);
+    if ((*sketch)->sketch_list == NULL) {
+        fprintf(stderr, "Error in allocating sketch list for double collect \n");
+        exit(1);  
     }
+    (*sketch)->sketch_list[0] = NULL;
+    (*sketch)->sketch_list[1] = 0;
+
 
 
     (*sketch)->prop = malloc(N * sizeof(_Atomic uint32_t));
@@ -107,8 +109,10 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
 
 void free_fcds(fcds_sketch *sketch){
 
+    //TODO free the version list of sketches
+    free(sketch->sketch_list);
+
     free(sketch->global_sketch);
-    free(sketch->collect_sketch); 
     free(sketch->prop);
     
     uint32_t i;
@@ -272,6 +276,8 @@ void *propagator(fcds_sketch *sketch) {
                         if(0) minhash_print(sketch);
 
                         //TODO create new node in list of sketch_list
+                        uint64_t *version_sketch = copy_sketch(sketch->global_sketch, sketch->size);
+                        create_and_push_new_node(&sketch->sketch_list, version_sketch, sketch->size);
                     }
 
                     // After propagation is complete, atomically set the flag back to 0.
