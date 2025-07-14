@@ -5,6 +5,7 @@
 void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t *version_sketch, uint64_t size) {
 
 	/*sketch_record *new_node = malloc(sizeof(sketch_record));
+	OLD VERSION START
 	if (new_node == NULL) {
 		fprintf(stderr, "Error in creating new node for sketch list \n");
 		exit(1);
@@ -33,7 +34,12 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
         );
 	
 	
-	record->versioned = *head_sl;*/
+	record->versioned = *head_sl;
+	OLD VERSION END
+	*/
+	
+	
+	
 	
 	// --- Push sr1 onto the list ---
 	// This push operation will involve a 64-bit CAS on the head pointer itself.
@@ -50,6 +56,8 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	//    representing the *old* head's value.
 	//    If current_head_tp_ptr is NULL (list was empty), sr1->next will point to a tagged_pointer
 	//    that represents NULL and tag 0.
+	
+	// ***** The following should not be possible, head pointer is init as {Null, 0}; need only the else branch ****** //
 	if (current_head_tp_ptr == NULL) {
 	    sr1->next = alloc_aligned_tagged_pointer(NULL, 0);
 	} else {
@@ -62,8 +70,8 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 
 	// 3. Prepare the new head tagged_pointer.
 	//    This new_head_tp_ptr will point to the sr1 record.
-	//    Its tag will be incremented from the *previous* head's tag (if any).
-	uint64_t next_tag = (current_head_tp_ptr != NULL) ? current_head_tp_ptr->tag + 1 : 1;
+	//    Its tag will be incremented from the *previous* head's tag (if any). NOOO: counter is always init to 0
+	uint64_t next_tag = (current_head_tp_ptr != NULL) ? current_head_tp_ptr->tag + 1 : 1;   // This line is not needed
 	new_head_tp_ptr = alloc_aligned_tagged_pointer(sr1, next_tag);
 	if (new_head_tp_ptr == NULL) { // Handle allocation failure
 	    perror("Failed to allocate new_head_tp_ptr for sr1");
@@ -81,6 +89,8 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 
 	printf("Pushed sr1 (data %d). New fcds_sketch.sketch_list_head_ptr points to a tagged_pointer: ptr=%p, tag=%llu\n",
 	   sr1->data_payload, (void*)new_head_tp_ptr->ptr, new_head_tp_ptr->tag);
+
+	//// ***** Here should end the function ***** ////
 
 
 	// --- Push sr2 onto the list ---
@@ -183,7 +193,7 @@ sketch_record* alloc_sketch_record(uint64_t *sketch) {
         perror("malloc failed for sketch_record");
         return NULL;
     }
-    rec->next = NULL; // Initialize to NULL pointer (will point to tagged_pointer later)
+    rec->next = NULL;     // Initialize to NULL pointer (will point to tagged_pointer later)
     rec->sketch = sketch; // Initialize or allocate as needed
     return rec;
 }
