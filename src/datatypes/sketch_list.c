@@ -72,7 +72,7 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	//    This new_head_tp_ptr will point to the sr1 record.
 	//    Its tag will be incremented from the *previous* head's tag (if any). NOOO: counter is always init to 0
 	uint64_t next_tag = (current_head_tp_ptr != NULL) ? current_head_tp_ptr->tag + 1 : 1;   // This line is not needed
-	new_head_tp_ptr = alloc_aligned_tagged_pointer(sr1, next_tag);
+	new_head_tp_ptr = alloc_aligned_tagged_pointer(sr1, next_tag);  // MUST BE alloc_aligned_tagged_pointer(sr1, 0)
 	if (new_head_tp_ptr == NULL) { // Handle allocation failure
 	    perror("Failed to allocate new_head_tp_ptr for sr1");
 	    free(sr1->next); free(sr1); return 1;
@@ -91,6 +91,10 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	   sr1->data_payload, (void*)new_head_tp_ptr->ptr, new_head_tp_ptr->tag);
 
 	//// ***** Here should end the function ***** ////
+
+
+
+
 
 
 	// --- Push sr2 onto the list ---
@@ -126,23 +130,27 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	union tagged_pointer* current_tp_ptr = __atomic_load_n(&my_fcds_instance.sketch_list_head_ptr, __ATOMIC_ACQUIRE);
 
 	while (current_tp_ptr != NULL) {
-	sketch_record* current_record = current_tp_ptr->ptr;
-	if (current_record == NULL) { // Should not happen if list is well-formed
-	    printf("Error: Tagged pointer points to NULL record.\n");
-	    break;
-	}
-	printf("Record: %p, Data: %d, Sketch Version: %llu, Tag: %llu\n",
-	       (void*)current_record, current_record->data_payload, *current_record->sketch_version, current_tp_ptr->tag);
+		sketch_record* current_record = current_tp_ptr->ptr;
+		if (current_record == NULL) { // Should not happen if list is well-formed
+		    printf("Error: Tagged pointer points to NULL record.\n");
+		    break;
+		}
+		printf("Record: %p, Data: %d, Sketch Version: %llu, Tag: %llu\n",
+		       (void*)current_record, current_record->data_payload, *current_record->sketch_version, current_tp_ptr->tag);
 
-	if (current_record->next != NULL) {
-	     printf("  -> Next link details: ptr=%p, tag=%llu\n",
-		    (void*)current_record->next->ptr, current_record->next->tag);
-	     current_tp_ptr = current_record->next; // Move to the next node's tagged_pointer
-	} else {
-	    printf("  -> End of list.\n");
-	    current_tp_ptr = NULL; // Signal end of loop
+		if (current_record->next != NULL) {
+		     printf("  -> Next link details: ptr=%p, tag=%llu\n",
+			    (void*)current_record->next->ptr, current_record->next->tag);
+		     current_tp_ptr = current_record->next; // Move to the next node's tagged_pointer
+		} else {
+		    printf("  -> End of list.\n");
+		    current_tp_ptr = NULL; // Signal end of loop
+		}
 	}
-	}
+	
+	
+	
+	
 
 	// --- Cleanup (very simplified, real lock-free free is complex due to reclamation) ---
 	printf("\n--- Cleaning up ---\n");
