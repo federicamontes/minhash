@@ -67,8 +67,7 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 		 &current_head_tp_ptr,
 		 new_head_tp_ptr)); // This CAS operates on the pointer itself
 
-	printf("Pushed sr. New head points to a tagged_pointer: ptr=%p\n",
-	   sr);
+	//printf("Pushed sr. New head points to a tagged_pointer: ptr=%p\n",sr);
 
 	//// ***** Here should end the function ***** ////
 
