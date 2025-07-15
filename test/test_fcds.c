@@ -198,7 +198,7 @@ int main(int argc, const char*argv[]) {
     double elapsed = (end.tv_sec - start.tv_sec) * 1000.0;      // seconds to ms
     elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
 
-    printf("Elapsed time: %.3f s\n", elapsed);
+    printf("Elapsed time: %.3f ms\n", elapsed);
 
     pthread_barrier_destroy(&barrier);
 
