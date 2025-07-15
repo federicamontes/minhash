@@ -41,54 +41,34 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	
 	
 	
-	// --- Push sr1 onto the list ---
-	// This push operation will involve a 64-bit CAS on the head pointer itself.
-	// Loop for retries (typical for lock-free operations)
-/*	union tagged_pointer* current_head_tp_ptr; // Pointer to the current head's tagged_pointer
+	// Create a new node as well as an associated tagged pointer
+	// This operation will involve a 64-bit CAS on the head pointer itself.
+	// Fail-retry loop on the head
+	union tagged_pointer* current_head_tp_ptr; // Pointer to the current head's tagged_pointer
 	union tagged_pointer* new_head_tp_ptr;     // Pointer to the new head's tagged_pointer
-
-	do {
-	// 1. Atomically load the current value of the head pointer (64-bit atomic read)
-	current_head_tp_ptr = __atomic_load_n(&my_fcds_instance.sketch_list_head_ptr, __ATOMIC_ACQUIRE);
-
-	// 2. Prepare the new node's 'next' pointer
-	//    sr1->next needs to point to a dynamically allocated tagged_pointer
-	//    representing the *old* head's value.
-	//    If current_head_tp_ptr is NULL (list was empty), sr1->next will point to a tagged_pointer
-	//    that represents NULL and tag 0.
 	
-	// ***** The following should not be possible, head pointer is init as {Null, 0}; need only the else branch ****** //
-	if (current_head_tp_ptr == NULL) {
-	    sr1->next = alloc_aligned_tagged_pointer(NULL, 0);
-	} else {
-	    sr1->next = alloc_aligned_tagged_pointer(current_head_tp_ptr->ptr, current_head_tp_ptr->tag);
-	}
-	if (sr1->next == NULL) { // Handle allocation failure
-	    perror("Failed to allocate sr1->next");
-	    free(sr1); return 1;
-	}
+	sketch_record *sr = alloc_sketch_record(version_sketch);   // Pointer to the new list record
+	// 0. Prepare the new head tagged_pointer.
+	//    This new_head_tp_ptr will point to the sr record.
+	//    Its tag will be 0 (no reader on it since it was not published yet)
+	new_head_tp_ptr = alloc_aligned_tagged_pointer(sr, 0);
+	
+	do {
+		// 1. Atomically load the current value of the head pointer (64-bit atomic read)
+		// sr->next needs to point to the head (i.e., tagged_pointer) representing the *old* head's value.
+		sr->next = __atomic_load_n(head_sl, __ATOMIC_ACQUIRE);  // sr now point to the head record. It works since only a single thread (this one) changes the head
 
-	// 3. Prepare the new head tagged_pointer.
-	//    This new_head_tp_ptr will point to the sr1 record.
-	//    Its tag will be incremented from the *previous* head's tag (if any). NOOO: counter is always init to 0
-	uint64_t next_tag = (current_head_tp_ptr != NULL) ? current_head_tp_ptr->tag + 1 : 1;   // This line is not needed
-	new_head_tp_ptr = alloc_aligned_tagged_pointer(sr1, next_tag);  // MUST BE alloc_aligned_tagged_pointer(sr1, 0)
-	if (new_head_tp_ptr == NULL) { // Handle allocation failure
-	    perror("Failed to allocate new_head_tp_ptr for sr1");
-	    free(sr1->next); free(sr1); return 1;
-	}
-
-	// 4. Atomically update the `sketch_list_head_ptr` (64-bit CAS)
-	//    We are trying to swap `current_head_tp_ptr` with `new_head_tp_ptr`.
-	//    If this CAS fails, `current_head_tp_ptr` will be updated to the actual current value,
-	//    and we retry the loop.
+		// 2. Atomically update the `sketch_list_head_ptr` (64-bit CAS)
+		//    We are trying to swap `current_head_tp_ptr` with `new_head_tp_ptr`.
+		//    If this CAS fails, `current_head_tp_ptr` will be updated to the actual current value,
+		//    and we retry the loop.
 	} while (!atomic_compare_exchange_tagged_pointer_ptr(
-		 &my_fcds_instance.sketch_list_head_ptr,
+		 head_sl,
 		 &current_head_tp_ptr,
 		 new_head_tp_ptr)); // This CAS operates on the pointer itself
 
-	printf("Pushed sr1 (data %d). New fcds_sketch.sketch_list_head_ptr points to a tagged_pointer: ptr=%p, tag=%llu\n",
-	   sr1->data_payload, (void*)new_head_tp_ptr->ptr, new_head_tp_ptr->tag);
+	printf("Pushed sr. New head points to a tagged_pointer: ptr=%p\n",
+	   sr);
 
 	//// ***** Here should end the function ***** ////
 
@@ -96,7 +76,7 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 
 
 
-
+/*
 	// --- Push sr2 onto the list ---
 	union tagged_pointer* current_head_tp_ptr_sr2;
 	union tagged_pointer* new_head_tp_ptr_sr2;
@@ -187,7 +167,7 @@ union tagged_pointer* alloc_aligned_tagged_pointer(struct sketch_record* ptr_val
     // posix_memalign is a standard way to get aligned memory on POSIX systems
     if (posix_memalign((void**)&new_tp, _Alignof(union tagged_pointer), sizeof(union tagged_pointer)) != 0) {
         perror("posix_memalign failed for tagged_pointer");
-        return NULL;
+        exit(EXIT_FAILURE);
     }
     new_tp->ptr = ptr_val;
     new_tp->counter = counter_val;
@@ -199,7 +179,7 @@ sketch_record* alloc_sketch_record(uint64_t *sketch) {
     sketch_record* rec = (sketch_record*)malloc(sizeof(sketch_record));
     if (rec == NULL) {
         perror("malloc failed for sketch_record");
-        return NULL;
+        exit(EXIT_FAILURE);
     }
     rec->next = NULL;     // Initialize to NULL pointer (will point to tagged_pointer later)
     rec->sketch = sketch; // Initialize or allocate as needed
