@@ -69,10 +69,7 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
     (*sketch)->sketch_list[0] = NULL;
     (*sketch)->sketch_list[1] = 0;*/
     
-    // Initialize the head of the list to point to a null record
-    union tagged_pointer *tp = alloc_aligned_tagged_pointer(NULL, 0);
-    __atomic_store_n(&((*sketch)->sketch_list), tp, __ATOMIC_RELEASE);
-
+    
 
     (*sketch)->prop = malloc(N * sizeof(_Atomic uint32_t));
     if ((*sketch)->prop == NULL) {
@@ -104,6 +101,13 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
     
     if (init_size > 0)
         init_values_fcds(*sketch, init_size);
+        
+        
+    // Initialize the head of the list to point to a copy of global_sketch
+    uint64_t *copy = copy_sketch((*sketch)->global_sketch, sketch_size);
+    union tagged_pointer *tp = alloc_aligned_tagged_pointer(copy, 0);
+    __atomic_store_n(&((*sketch)->sketch_list), tp, __ATOMIC_RELEASE);
+
 
 
 }
