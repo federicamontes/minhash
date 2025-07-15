@@ -105,7 +105,8 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
         
     // Initialize the head of the list to point to a copy of global_sketch
     uint64_t *copy = copy_sketch((*sketch)->global_sketch, sketch_size);
-    union tagged_pointer *tp = alloc_aligned_tagged_pointer(copy, 0);
+    sketch_record *sr = alloc_sketch_record(copy);   // Pointer to the new list record
+    union tagged_pointer *tp = alloc_aligned_tagged_pointer(sr, 0);
     __atomic_store_n(&((*sketch)->sketch_list), tp, __ATOMIC_RELEASE);
 
 
@@ -154,7 +155,7 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
     if(*insertion_counter == b){
         // start the propagation proceedure 
         *insertion_counter = 0;
-        printf("Done %u inserts\n", b);
+        // printf("Done %u inserts\n", b);
         // We've reached or exceeded the threshold.
         // Try to atomically set the prop_flag to 1 (Propagation Needed).
         // Use CAS to ensure only one "request" is made at a time.
@@ -215,21 +216,22 @@ uint64_t *get_global_sketch(fcds_sketch *sketch){
 
 }
 
-float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) {
+float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) { // TODO: change the signature: do we need to compare two fcds sketch? Can the latter be just a simple sketch (array)?
 
-    uint64_t *first = get_global_sketch(sketch);
-    uint64_t *second = get_global_sketch(otherSketch);
+    uint64_t *first = get_global_sketch(sketch);   // here we have a a deep copy
+    //uint64_t *second = get_global_sketch(otherSketch);
     
     uint64_t i;
     int count = 0;
     for (i=0; i < sketch->size; i++) {
-	if (IS_EQUAL(first[i], second[i]))
+	if (IS_EQUAL(first[i], sketch->global_sketch[i]))
 	    count++;
     }
-    fprintf(stderr, "[query] actual count %d\n", count);
+    //fprintf(stderr, "[query] actual count %d\n", count);
+    if(count != sketch->size)fprintf(stderr, "[query] actual count %d\n", count);
     
     free(first); // they are just array, standard free suffices
-    free(second);
+    //free(second);
     return count/(float)sketch->size;
 
 }
@@ -245,7 +247,7 @@ float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) {
 void *propagator(fcds_sketch *sketch) {
     //fcds_sketch *sketch = (fcds_sketch *)arg;
 
-    printf("Propagator enter!\n");
+    // printf("Propagator enter!\n");
 
     while (1) { // TODO; Loop indefinitely or until a termination condition
 
@@ -270,7 +272,7 @@ void *propagator(fcds_sketch *sketch) {
                                             __ATOMIC_RELAXED)) { // Memory order for failure: Relaxed (no special ordering needed)
 
                     // If we successfully set the flag to 2, it means we "claimed" this propagation request.
-                    printf("Propagator: Processing propagation request for thread %u\n", i);
+                    // printf("Propagator: Processing propagation request for thread %u\n", i);
 
                     // --- Perform the actual propagation logic here ---
                     // This would typically involve:
@@ -280,7 +282,7 @@ void *propagator(fcds_sketch *sketch) {
 
                     if (merge(sketch->global_sketch, sketch->local_sketches[i], sketch->size)) { // TODO: it does not take into account reader threads concurrent to this one
                         /// global sketch print
-                        if(0) minhash_print(sketch);
+                        // if(0) minhash_print(sketch);
 
                         //TODO create new node in list of sketch_list
                         uint64_t *version_sketch = copy_sketch(sketch->global_sketch, sketch->size);

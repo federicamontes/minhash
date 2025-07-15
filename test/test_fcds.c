@@ -9,7 +9,7 @@
 struct minhash_configuration conf = {
     .sketch_size = 128,          /// Number of hash functions / sketch size
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
-    .hash_type = 1,        /// ID for hash function pointer
+    .hash_type = 0,        /// ID for hash function pointer
     .init_size = 0,                 /// Initial elements to insert (optional)
     .k = 3,
     .N = 0,
@@ -72,6 +72,20 @@ if (0) {
     return NULL;
 }
 
+
+void *thread_query(void *arg) {
+    thread_arg_t *targ = (thread_arg_t *)arg;
+
+    fcds_sketch *t_sketch = targ->sketch;
+
+    // Synchronize all threads before starting insertion
+    pthread_barrier_wait(&barrier);
+
+    for (int i = 0; i < 100000; i++)
+	query_fcds(t_sketch, t_sketch);
+    return NULL;
+}
+
 void *propagator_routine(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
 
@@ -84,9 +98,9 @@ void *propagator_routine(void *arg) {
 
 int main(int argc, const char*argv[]) {
 
-    if (argc < 6) {
+    if (argc < 7) {
         fprintf(stderr,
-                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion>\n",
+                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads>\n",
                 argv[0]);
         return 1;
     }
@@ -117,8 +131,13 @@ int main(int argc, const char*argv[]) {
     }
 
     long threshold = strtol(argv[5], &endptr, 10);
-    if (*endptr != '\0' || num_threads <= 1) {
+    if (*endptr != '\0' || threshold <= 1) {
         fprintf(stderr, "threshold must be greater than zero!\n");
+        return 1;
+    }
+    long num_query_threads = strtol(argv[6], &endptr, 10);
+    if (*endptr != '\0' || num_query_threads < 0) {
+        fprintf(stderr, "num_query_threads must be greater than or equal to zero!\n");
         return 1;
     }
     
@@ -137,12 +156,11 @@ int main(int argc, const char*argv[]) {
 
     init_fcds(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
 
+    pthread_barrier_init(&barrier, NULL, num_threads + num_query_threads);
 
-    pthread_barrier_init(&barrier, NULL, num_threads);
 
-
-    pthread_t threads[conf.N+1]; // consider #writers + propagator
-    thread_arg_t targs[conf.N+1]; 
+    pthread_t threads[conf.N+1 + num_query_threads]; // consider #writers + propagator
+    thread_arg_t targs[conf.N+1 + num_query_threads]; 
 
     uint64_t chunk_size = n_inserts / conf.N;
     uint64_t remainder = n_inserts % conf.N;
@@ -166,11 +184,22 @@ int main(int argc, const char*argv[]) {
             exit(1);
         }
     }
-
+    
+    
+    for (; i < conf.N + num_query_threads; i++){
+        targs[i].tid = i;
+        targs[i].sketch = sketch;
+        int rc = pthread_create(&threads[i], NULL, thread_query, &targs[i]);
+        if (rc) {
+            fprintf(stderr, "Error creating thread query %lu\n", i);
+            exit(1);
+        }
+    }
+    
     pthread_barrier_wait(&barrier);
 
 
-    if (i == conf.N) {
+    if (i >= conf.N) {
         targs[i].tid = i;
         targs[i].sketch = sketch;
         int rc = pthread_create(&threads[i], NULL, propagator_routine, &targs[i]);
@@ -187,7 +216,7 @@ int main(int argc, const char*argv[]) {
 
 
     long j;
-    for (j = 0; j < conf.N; j++) {
+    for (j = 0; j < conf.N + num_query_threads; j++) {
         pthread_join(threads[j], NULL);
     }
 
