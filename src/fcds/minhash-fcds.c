@@ -330,13 +330,13 @@ _Atomic(union tagged_pointer*) get_head(fcds_sketch *sketch){
 
 
 
-do {
+//do {
     do {
         // Atomically load the current value of the tagged_pointer at head_ptr.
         // We need to use __atomic_load_n on its packed_value because it's a 128-bit atomic object.
         head_ptr = __atomic_load_n(&sketch->sketch_list, __ATOMIC_SEQ_CST);
         // Note that head_ptr is never NULL
-        current_head_value.packed_value = __atomic_load_n(&head_ptr->packed_value, __ATOMIC_SEQ_CST);
+        current_head_value.packed_value = __atomic_load_n(&head_ptr->packed_value, __ATOMIC_SEQ_CST);  // current_head_value is just a copy of *heat_ptr
 
 
 
@@ -348,14 +348,16 @@ do {
         // If successful, current_head_value still holds the value *before* the swap.
         // If unsuccessful, current_head_value is updated with the *current* value, and the loop retries.
     } while (!atomic_compare_exchange_tagged_ptr(
-                 head_ptr,              // The target tagged_pointer to modify
+                 //head_ptr,              // The target tagged_pointer to modify
+	         sketch->sketch_list,   
                  &current_head_value,   // Expected value (will be updated on failure)
                  new_head_value         // Desired new value
-             ));
+             ));                        // If the CAS fails it means either another query thread has changed the counter or the sketch list's head changes. 
+	                                // In the latter case we have to take the new head. NOtice that if CAS fails no modification occurs to *head_ptr
 
 
 
-} while (head_ptr != sketch->sketch_list);
+//} while (head_ptr != sketch->sketch_list);
 
 
 
