@@ -91,7 +91,7 @@ int atomic_compare_exchange_tagged_pointer_ptr(
 
 // TODO methods for managing list
 void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t *version_sketch, uint64_t size);
-
+void delete_node(sketch_record *prev);
 
 
 

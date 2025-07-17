@@ -101,6 +101,8 @@ void *propagator(fcds_sketch *arg);
 uint64_t *get_global_sketch(fcds_sketch *sketch);
 float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch);
 
+void garbage_collector_list(fcds_sketch *sketch);
+
 #endif
 
 

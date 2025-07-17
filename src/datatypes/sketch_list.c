@@ -1,7 +1,7 @@
 #include <sketch_list.h>
 
 
-// TODO methods implementation for managing list LIFO
+// methods implementation for managing list LIFO
 void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t *version_sketch, uint64_t size) {
 
 	/*sketch_record *new_node = malloc(sizeof(sketch_record));
@@ -44,7 +44,7 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	// Create a new node as well as an associated tagged pointer
 	// This operation will involve a 64-bit CAS on the head pointer itself.
 	// Fail-retry loop on the head
-	union tagged_pointer* current_head_tp_ptr; // Pointer to the current head's tagged_pointer
+	union tagged_pointer* current_head_tp_ptr = *head_sl; // Pointer to the current head's tagged_pointer
 	union tagged_pointer* new_head_tp_ptr;     // Pointer to the new head's tagged_pointer
 	
 	sketch_record *sr = alloc_sketch_record(version_sketch);   // Pointer to the new list record
@@ -52,11 +52,11 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	//    This new_head_tp_ptr will point to the sr record.
 	//    Its tag will be 0 (no reader on it since it was not published yet)
 	new_head_tp_ptr = alloc_aligned_tagged_pointer(sr, 0);
-	
 	do {
 		// 1. Atomically load the current value of the head pointer (64-bit atomic read)
 		// sr->next needs to point to the head (i.e., tagged_pointer) representing the *old* head's value.
 		sr->next = __atomic_load_n(head_sl, __ATOMIC_ACQUIRE);  // sr now point to the head record. It works since only a single thread (this one) changes the head
+		//fprintf(stderr, "create_and_push_new_node sr->next = %p   -- %d\n", sr->next, i++);
 
 		// 2. Atomically update the `sketch_list_head_ptr` (64-bit CAS)
 		//    We are trying to swap `current_head_tp_ptr` with `new_head_tp_ptr`.
@@ -67,7 +67,7 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 		 &current_head_tp_ptr,
 		 new_head_tp_ptr)); // This CAS operates on the pointer itself
 
-	//printf("Pushed sr. New head points to a tagged_pointer: ptr=%p\n",sr);
+	//fprintf(stderr, "create_and_push_new_node head_sl = %p\n", *head_sl);
 
 	//// ***** Here should end the function ***** ////
 
@@ -137,26 +137,43 @@ void create_and_push_new_node(_Atomic(union tagged_pointer*) *head_sl, uint64_t 
 	union tagged_pointer* current_tp_to_free = head_cleanup;
 
 	while (current_tp_to_free != NULL) {
-	sketch_record* record_to_free = current_tp_to_free->ptr;
-	union tagged_pointer* next_tp_to_free_later = NULL;
+		sketch_record* record_to_free = current_tp_to_free->ptr;
+		union tagged_pointer* next_tp_to_free_later = NULL;
 
-	if (record_to_free != NULL) {
-	    next_tp_to_free_later = record_to_free->next; // Get the next tagged_pointer pointer
-	    printf("Freeing record at %p (data %d)\n", (void*)record_to_free, record_to_free->data_payload);
-	    free(record_to_free); // Free the sketch_record itself
-	}
+		if (record_to_free != NULL) {
+		    next_tp_to_free_later = record_to_free->next; // Get the next tagged_pointer pointer
+		    printf("Freeing record at %p (data %d)\n", (void*)record_to_free, record_to_free->data_payload);
+		    free(record_to_free); // Free the sketch_record itself
+		}
 
-	printf("Freeing tagged_pointer at %p (points to %p, tag %llu)\n",
-	       (void*)current_tp_to_free, (void*)current_tp_to_free->ptr, current_tp_to_free->tag);
-	free(current_tp_to_free); // Free the current tagged_pointer union
+		printf("Freeing tagged_pointer at %p (points to %p, tag %llu)\n",
+		       (void*)current_tp_to_free, (void*)current_tp_to_free->ptr, current_tp_to_free->tag);
+		free(current_tp_to_free); // Free the current tagged_pointer union
 
-	current_tp_to_free = next_tp_to_free_later; // Move to the next tagged_pointer to free
+		current_tp_to_free = next_tp_to_free_later; // Move to the next tagged_pointer to free
 	}
 */
 	
 }
 
 
+// Delete the node after prev. Prev will point to prev->next->next
+// the method suppose that no reader is on prev->next and there won't be any. Hence, the node may be safely delete 
+void delete_node(sketch_record *prev){
+
+    _Atomic(union tagged_pointer*) tp_to_del_node = __atomic_load_n(&prev->next, __ATOMIC_ACQUIRE);   // tagged_pointer which points to the node to be deleted
+
+    sketch_record* node_to_del = tp_to_del_node->ptr;
+
+    //fprintf(stderr, "delete_node: prev->next = %p  -- prev->next->ptr = %p\t", prev->next, prev->next->ptr);
+    prev->next = node_to_del->next;	// link prev to prev->next->next that is keep the list linked 
+    //fprintf(stderr, "prev->next = %p\n", prev->next);
+    // Now we can safely free the node and the tagged_pointer to that node
+    free(node_to_del->sketch);  // free the area of the sketch
+    free(node_to_del);		       // free the node
+    free(tp_to_del_node);	       // free the tagged_pointer that points to node_to_del
+
+}
 
 
 

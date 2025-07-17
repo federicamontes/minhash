@@ -107,7 +107,9 @@ void init_fcds(fcds_sketch **sketch, void *hash_functions, uint64_t sketch_size,
     uint64_t *copy = copy_sketch((*sketch)->global_sketch, sketch_size);
     sketch_record *sr = alloc_sketch_record(copy);   // Pointer to the new list record
     union tagged_pointer *tp = alloc_aligned_tagged_pointer(sr, 0);
+    sr->next = alloc_aligned_tagged_pointer(NULL, 0);
     __atomic_store_n(&((*sketch)->sketch_list), tp, __ATOMIC_RELEASE);
+    // fprintf(stderr, "init: head_sl = %p, head_sl->ptr = %p, sr->nexst = %p\n", (*sketch)->sketch_list, (*sketch)->sketch_list->ptr, sr->next);
 
 
 
@@ -172,7 +174,7 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
 
         // Spin-wait until the propagator sets it back to 0.
         // The __ATOMIC_ACQUIRE ensures that once we see 0, all changes made  by the propagator are visible.
-        while (__atomic_load_n(prop, __ATOMIC_ACQUIRE) != 0) {
+        while (__atomic_load_n(prop, __ATOMIC_RELAXED) != 0) {
                 // Optional: yield CPU or sleep briefly to avoid busy-waiting.
                 // sched_yield(); // or usleep(1);
         }     
@@ -228,7 +230,7 @@ float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) { // TODO: chang
 	    count++;
     }
     //fprintf(stderr, "[query] actual count %d\n", count);
-    if(count != sketch->size)fprintf(stderr, "[query] actual count %d\n", count);
+    //if(count != sketch->size)fprintf(stderr, "[query] actual count %d\n", count);
     
     free(first); // they are just array, standard free suffices
     //free(second);
@@ -304,7 +306,45 @@ void *propagator(fcds_sketch *sketch) {
 
         // TODO here propagator thread must check if 
         // memory reclamation is possible in sketch_list
+        garbage_collector_list(sketch);
 
     }
     return NULL;
+}
+
+
+
+
+void garbage_collector_list(fcds_sketch *sketch){
+
+
+    sketch_record *node, *prev;
+    _Atomic(union tagged_pointer*) tp = __atomic_load_n(&sketch->sketch_list, __ATOMIC_ACQUIRE);   // tagged_pointer which points to the head
+    
+    // prev is initially the first record that always exists
+    prev =  __atomic_load_n(&tp->ptr, __ATOMIC_RELAXED);
+    // Skip the head of the list: do not delete that node, not matter what
+    tp = __atomic_load_n(&prev->next, __ATOMIC_RELAXED);  // prev is always not NULL
+    
+    
+    while (tp->ptr != NULL) {
+    // if tp->ptr is NULL head is the last tagger_pointer of the list
+        node = tp->ptr;
+        //fprintf(stderr, "garbage_collector_list prev = %p -- prev->next = %p  -- tp->ptr = %p\n", prev, prev->next, tp->ptr);
+        // check if we can safely delete node. We can do that if head->counter is 0. TODO: do we need atomic load of that field? Can we use a 64 version of it?
+        if (__atomic_load_n(&tp->counter, __ATOMIC_RELAXED) == 0){  // No need of stronger memory order, if it is zero it won't be 1 and if it is >0 we skip it and clear it later
+       
+
+            //We can safely remove the record pointed by tp->ptr; tp is stored in prev
+            delete_node(prev);
+            
+            node = prev->next->ptr;
+        } else {
+            // else serves because if we delete the node, prev does not change	
+            prev = node;
+        }
+        tp = prev->next;    
+    }
+    
+
 }

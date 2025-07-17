@@ -81,8 +81,10 @@ void *thread_query(void *arg) {
     // Synchronize all threads before starting insertion
     pthread_barrier_wait(&barrier);
 
-    for (int i = 0; i < 100000; i++)
+    for (int i = 0; i < 1000000000; i++)
 	query_fcds(t_sketch, t_sketch);
+	
+            fprintf(stderr, "Eenddd\n");
     return NULL;
 }
 
@@ -131,7 +133,7 @@ int main(int argc, const char*argv[]) {
     }
 
     long threshold = strtol(argv[5], &endptr, 10);
-    if (*endptr != '\0' || threshold <= 1) {
+    if (*endptr != '\0' || threshold < 1) {
         fprintf(stderr, "threshold must be greater than zero!\n");
         return 1;
     }
@@ -216,7 +218,7 @@ int main(int argc, const char*argv[]) {
 
 
     long j;
-    for (j = 0; j < conf.N + num_query_threads; j++) {
+    for (j = 0; j < conf.N; j++) {
         pthread_join(threads[j], NULL);
     }
 
