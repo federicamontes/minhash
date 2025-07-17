@@ -82,7 +82,7 @@ void *thread_query(void *arg) {
     pthread_barrier_wait(&barrier);
 
     for (int i = 0; i < 1000000000; i++)
-	query_fcds(t_sketch, t_sketch);
+	query_fcds(t_sketch, t_sketch->global_sketch);
 	
             fprintf(stderr, "Eenddd\n");
     return NULL;
@@ -237,6 +237,6 @@ int main(int argc, const char*argv[]) {
     printf("Test passed!\n");
 
 
-    free_fcds(sketch);
+    //free_fcds(sketch);
     return 0;
 }

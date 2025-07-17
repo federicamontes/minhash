@@ -192,7 +192,7 @@ uint64_t *get_global_sketch(fcds_sketch *sketch){
 /** return a copy of global_sketch in sketch.
 * The actual algorithm is an impementation of a double collect mechanism in which a copy of global_sketch is generated, then it is compared with global_sketch to check
 * if a modification occured in the middle. If so, the last sketch in the shared list is returned.
-* This algorithm should guarantee overall correctness since the returned sketchis a valid state in the query's time interval
+* This algorithm should guarantee overall correctness since the returned sketch is a valid state in the query's time interval
 */
 
   uint64_t *copy = copy_sketch(sketch->global_sketch, sketch->size);
@@ -208,8 +208,12 @@ uint64_t *get_global_sketch(fcds_sketch *sketch){
   }
   
   if (!valid){
-     // Go to the shared list and take a copy of the last element
-  
+     // Go to the shared list and take a copy of the first element (i.e., the one pointed by the head
+     _Atomic(union tagged_pointer*) head = get_head(sketch);
+      for (i = 0; i < sketch->size; i++){ // copy the sketch in the list
+          copy[i] = head->ptr->sketch[i];
+      }
+      decrement_counter(head);  // no more work on the record pointed by head, it can be released
   }
   
   
@@ -218,21 +222,21 @@ uint64_t *get_global_sketch(fcds_sketch *sketch){
 
 }
 
-float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch) { // TODO: change the signature: do we need to compare two fcds sketch? Can the latter be just a simple sketch (array)?
+float query_fcds(fcds_sketch *sketch, uint64_t *otherSketch) { // TODO: change the signature: do we need to compare two fcds sketch? Can the latter be just a simple sketch (array)?
 
-    uint64_t *first = get_global_sketch(sketch);   // here we have a a deep copy
+    uint64_t *actual_sketch = get_global_sketch(sketch);   // here we have a a deep copy
     //uint64_t *second = get_global_sketch(otherSketch);
     
     uint64_t i;
     int count = 0;
     for (i=0; i < sketch->size; i++) {
-	if (IS_EQUAL(first[i], sketch->global_sketch[i]))
+	if (IS_EQUAL(actual_sketch[i], otherSketch[i]))
 	    count++;
     }
     //fprintf(stderr, "[query] actual count %d\n", count);
     //if(count != sketch->size)fprintf(stderr, "[query] actual count %d\n", count);
     
-    free(first); // they are just array, standard free suffices
+    free(actual_sketch); // they are just array, standard free suffices
     //free(second);
     return count/(float)sketch->size;
 
@@ -312,6 +316,84 @@ void *propagator(fcds_sketch *sketch) {
     return NULL;
 }
 
+
+
+
+
+
+_Atomic(union tagged_pointer*) get_head(fcds_sketch *sketch){
+
+
+    union tagged_pointer current_head_value;
+    union tagged_pointer new_head_value;
+    union tagged_pointer* head_ptr; // Pointer to the tagged_pointer at the head of the list
+
+
+
+do {
+    do {
+        // Atomically load the current value of the tagged_pointer at head_ptr.
+        // We need to use __atomic_load_n on its packed_value because it's a 128-bit atomic object.
+        head_ptr = __atomic_load_n(&sketch->sketch_list, __ATOMIC_SEQ_CST);
+        // Note that head_ptr is never NULL
+        current_head_value.packed_value = __atomic_load_n(&head_ptr->packed_value, __ATOMIC_SEQ_CST);
+
+
+
+        // Prepare the desired new value: same pointer, incremented counter.
+        new_head_value = current_head_value;
+        new_head_value.counter++;
+
+        // Attempt to atomically compare and swap.
+        // If successful, current_head_value still holds the value *before* the swap.
+        // If unsuccessful, current_head_value is updated with the *current* value, and the loop retries.
+    } while (!atomic_compare_exchange_tagged_ptr(
+                 head_ptr,              // The target tagged_pointer to modify
+                 &current_head_value,   // Expected value (will be updated on failure)
+                 new_head_value         // Desired new value
+             ));
+
+
+
+} while (head_ptr != sketch->sketch_list);
+
+
+
+    // Return the pointer to the tagged_pointer just incremented
+    return head_ptr;
+
+}
+
+void decrement_counter(_Atomic(union tagged_pointer*) tp){
+
+
+    union tagged_pointer current_tp_value;
+    union tagged_pointer new_tp_value;
+
+
+
+
+    do {
+        // Note that head_ptr is never NULL
+        current_tp_value.packed_value = __atomic_load_n(&tp->packed_value, __ATOMIC_SEQ_CST);
+
+
+
+        // Prepare the desired new value: same pointer, incremented counter.
+        new_tp_value = current_tp_value;
+        new_tp_value.counter--;
+
+        // Attempt to atomically compare and swap.
+        // If successful, current_head_value still holds the value *before* the swap.
+        // If unsuccessful, current_head_value is updated with the *current* value, and the loop retries.
+    } while (!atomic_compare_exchange_tagged_ptr(
+                 tp,                  // The target tagged_pointer to modify
+                 &current_tp_value,   // Expected value (will be updated on failure)
+                 new_tp_value         // Desired new value
+             ));
+
+
+}
 
 
 

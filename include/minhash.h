@@ -99,8 +99,10 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
 void *propagator(fcds_sketch *arg);
 
 uint64_t *get_global_sketch(fcds_sketch *sketch);
-float query_fcds(fcds_sketch *sketch, fcds_sketch *otherSketch);
+float query_fcds(fcds_sketch *sketch,  uint64_t *otherSketch);
 
+_Atomic(union tagged_pointer*) get_head(fcds_sketch *sketch);
+void decrement_counter(_Atomic(union tagged_pointer*) tp);
 void garbage_collector_list(fcds_sketch *sketch);
 
 #endif

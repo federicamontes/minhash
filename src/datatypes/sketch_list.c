@@ -169,9 +169,10 @@ void delete_node(sketch_record *prev){
     prev->next = node_to_del->next;	// link prev to prev->next->next that is keep the list linked 
     //fprintf(stderr, "prev->next = %p\n", prev->next);
     // Now we can safely free the node and the tagged_pointer to that node
-    free(node_to_del->sketch);  // free the area of the sketch
-    free(node_to_del);		       // free the node
     free(tp_to_del_node);	       // free the tagged_pointer that points to node_to_del
+    free(node_to_del->sketch);         // free the area of the sketch
+    free(node_to_del);		       // free the node
+
 
 }
 
