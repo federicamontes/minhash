@@ -173,9 +173,8 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
 
 
         // Spin-wait until the propagator sets it back to 0.
-        // The __ATOMIC_ACQUIRE ensures that once we see 0, all changes made  by the propagator are visible.
         while (__atomic_load_n(prop, __ATOMIC_RELAXED) != 0) {
-                // Optional: yield CPU or sleep briefly to avoid busy-waiting.
+                // TODO Optional: yield CPU or sleep briefly to avoid busy-waiting
                 // sched_yield(); // or usleep(1);
         }     
         
@@ -321,7 +320,7 @@ void *propagator(fcds_sketch *sketch) {
 
 
 
-_Atomic(union tagged_pointer*) get_head(fcds_sketch *sketch){
+union tagged_pointer* get_head(fcds_sketch *sketch){
 
 
     union tagged_pointer current_head_value;

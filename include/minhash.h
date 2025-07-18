@@ -101,7 +101,9 @@ void *propagator(fcds_sketch *arg);
 uint64_t *get_global_sketch(fcds_sketch *sketch);
 float query_fcds(fcds_sketch *sketch,  uint64_t *otherSketch);
 
-_Atomic(union tagged_pointer*) get_head(fcds_sketch *sketch);
+
+//removed _Atomic as return type, warning says it is not meaningful it just must be declared as atomic
+union tagged_pointer* get_head(fcds_sketch *sketch);
 void decrement_counter(_Atomic(union tagged_pointer*) tp);
 void garbage_collector_list(fcds_sketch *sketch);
 
