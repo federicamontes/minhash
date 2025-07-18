@@ -142,6 +142,19 @@ int main(int argc, const char*argv[]) {
         fprintf(stderr, "num_query_threads must be greater than or equal to zero!\n");
         return 1;
     }
+
+    printf("=== Parameters ===\n");
+    printf("Number of insertions     : %ld\n", n_inserts);
+    printf("Sketch size              : %ld\n", ssize);
+    printf("Initial size             : %ld\n", startsize);
+    printf("Number of writer threads : %ld\n", num_threads - 1);  // conf.N
+    printf("Number of query threads  : %ld\n", num_query_threads);
+    printf("Threshold (b)            : %ld\n", threshold);
+    printf("Hash type                : %lu\n", conf.hash_type);
+    printf("Prime modulus            : %lu\n", conf.prime_modulus);
+    printf("Coefficient k-wise       : %d\n", conf.k);
+    printf("====================\n");
+
     
     conf.sketch_size = (uint64_t) ssize;
     if (startsize > 0) conf.init_size = (uint64_t) startsize;
