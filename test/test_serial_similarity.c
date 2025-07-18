@@ -57,7 +57,7 @@ int main(int argc, const char*argv[]) {
     minhash_init(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
     minhash_init(&sketch2, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
 
-    uint64_t i;
+    long i;
     for (i = 0; i < n_inserts; i++) {
         insert(sketch, i+startsize);
     }
