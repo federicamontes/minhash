@@ -63,7 +63,7 @@ void *thread_insert(void *arg) {
     
 if (0) {
     uint64_t i;
-    printf("Local sketch of %u : \n", targ->tid);
+    printf("Local sketch of %lu : \n", targ->tid);
     for(i=0; i < t_sketch->size; i++) {
         printf(" %lu, ", local_sketch[i]);
     }
@@ -81,10 +81,10 @@ void *thread_query(void *arg) {
     // Synchronize all threads before starting insertion
     pthread_barrier_wait(&barrier);
 
-    for (int i = 0; i < 1000000000; i++)
-	query_fcds(t_sketch, t_sketch->global_sketch);
+    for (int i = 0; i < 1000000; i++)
+	   query_fcds(t_sketch, t_sketch->global_sketch);
 	
-            fprintf(stderr, "Eenddd\n");
+    fprintf(stderr, "Query thread %lu done\n", targ->tid);
     return NULL;
 }
 
@@ -244,12 +244,20 @@ int main(int argc, const char*argv[]) {
 
     printf("Elapsed time: %.3f ms\n", elapsed);
 
+    // Join query threads
+    long q;
+    for (q = 0; q < num_query_threads; q++) {
+        //pthread_cancel(threads[q]);
+        pthread_join(threads[conf.N + q], NULL); // or conf.N + q
+    }
+
+
     pthread_barrier_destroy(&barrier);
 
 
     printf("Test passed!\n");
 
 
-    //free_fcds(sketch);
+    free_fcds(sketch);
     return 0;
 }
