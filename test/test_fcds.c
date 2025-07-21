@@ -9,9 +9,9 @@
 struct minhash_configuration conf = {
     .sketch_size = 128,          /// Number of hash functions / sketch size
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
-    .hash_type = 0,        /// ID for hash function pointer
+    .hash_type = 1,        /// ID for hash function pointer
     .init_size = 0,                 /// Initial elements to insert (optional)
-    .k = 3,
+    .k = 5,
     .N = 0,
     .b = 0,
 };
@@ -60,6 +60,15 @@ void *thread_insert(void *arg) {
 
     local_insert(local_sketch, t_sketch->hash_functions, t_sketch->hash_type, t_sketch->size,
         propi, targ->n_inserts, targ->startsize, t_sketch->b);
+        
+        
+    uint32_t expected_prop = 0; // Only transition from 0 to 1
+    while (! __atomic_compare_exchange_n(propi, &expected_prop, 1, 0, // Not weak CAS (strong CAS)
+                                        __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {
+            // DO NOTHING
+            ;                                
+    } // Since only two threads uses this prop, the busy-wait should be ok
+       
     
 if (0) {
     uint64_t i;
@@ -243,7 +252,7 @@ int main(int argc, const char*argv[]) {
     elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
 
     printf("Elapsed time: %.3f ms\n", elapsed);
-
+    gettimeofday(&start, NULL);
     // Join query threads
     long q;
     for (q = 0; q < num_query_threads; q++) {
@@ -253,9 +262,35 @@ int main(int argc, const char*argv[]) {
 
 
     pthread_barrier_destroy(&barrier);
+    // Get the end time
+    gettimeofday(&end, NULL);
+
+    // Compute elapsed time in milliseconds
+    elapsed = (end.tv_sec - start.tv_sec) * 1000.0;      // seconds to ms
+    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
+
+    printf("Elapsed time: %.3f ms\n", elapsed);
 
 
-    printf("Test passed!\n");
+
+    minhash_sketch *serial_sketch;
+
+
+    minhash_init(&serial_sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
+
+
+
+    for (i = 0; i < n_inserts - remainder; i++) {
+        insert(serial_sketch, i+startsize);
+    }
+    int count = 0;
+    for (i = 0; i < sketch->size; i++) {
+        if(serial_sketch->sketch[i] == sketch->global_sketch[i]) count++;
+        else  printf("different %d - %d --- %d!\n", i, serial_sketch->sketch[i],  sketch->global_sketch[i]);
+    }
+
+    if(count == sketch->size)    printf("Test passed eddaje!\n");
+    else printf("NOOOOOOOOOOOOOOOOOOOOO!\n");
 
 
     free_fcds(sketch);
