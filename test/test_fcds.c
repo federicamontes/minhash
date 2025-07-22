@@ -273,7 +273,7 @@ int main(int argc, const char*argv[]) {
 
 
 
-    minhash_sketch *serial_sketch;
+    /*minhash_sketch *serial_sketch;
 
 
     minhash_init(&serial_sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
@@ -290,7 +290,7 @@ int main(int argc, const char*argv[]) {
     }
 
     if(count == sketch->size)    printf("Test passed eddaje!\n");
-    else printf("NOOOOOOOOOOOOOOOOOOOOO!\n");
+    else printf("NOOOOOOOOOOOOOOOOOOOOO!\n");*/
 
 
     free_fcds(sketch);
