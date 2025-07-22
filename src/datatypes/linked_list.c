@@ -30,3 +30,9 @@ union tagged_pointer* alloc_aligned_tagged_pointer(uint64_t* ptr_val, uint64_t c
     new_tp->counter = counter_val;
     return new_tp;
 }
+
+
+void cache_query_sketch(void) {
+
+    
+}
