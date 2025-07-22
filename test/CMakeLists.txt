@@ -4,6 +4,8 @@ add_executable(test_serial_simil test_serial_similarity.c)
 if(LOCKS OR RW_LOCKS)
 add_executable(test_parallel_lock test_parallel_lock.c)
 endif()
+# Enable CTest testing support
+enable_testing()
 
 
 target_link_libraries(test_serial PRIVATE minhashcore)
@@ -32,3 +34,15 @@ target_include_directories(test_fcds PRIVATE
 )
 endif()
 
+# Always available tests
+add_test(NAME test_serial COMMAND test_serial 100000 100 1)
+add_test(NAME test_serial_simil COMMAND test_serial_simil 100000 100 1)
+
+if(LOCKS OR RW_LOCKS)
+    add_test(NAME test_parallel_lock COMMAND test_parallel_lock 100000 100 1 2)
+endif()
+
+if(FCDS)
+    add_test(NAME test_fcds COMMAND test_fcds 100000 100 1 2 1000 1)
+    add_test(NAME test_fcds2 COMMAND test_fcds 100000 100 1 11 1000 2)
+endif()
