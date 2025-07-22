@@ -146,8 +146,9 @@ union tagged_pointer *FetchAndInc128(_Atomic (union tagged_pointer *) *ins_sketc
 
 /* SKETCH OPERATIONS */
 void insert_conc_minhash(conc_minhash *sketch, uint64_t val);
-void conc_merge(conc_minhash *sketch);
+void concurrent_merge(conc_minhash *sketch);
 void concurrent_basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t hash_type, uint64_t elem);
+void sketch_values_update(conc_minhash *sketch);
 
 #endif
 
