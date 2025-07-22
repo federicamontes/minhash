@@ -127,9 +127,57 @@ union tagged_pointer *FetchAndInc128(_Atomic (union tagged_pointer *) *ins_sketc
 
 /* OPERATIONS IMPLEMENTATION */
 
-void conc_merge(conc_minhash *sketch) {
 
-	sketch = sketch;
+void sketch_values_update(conc_minhash *sketch) {
+
+	union tagged_pointer *query_sketch = FetchAndInc128(&(sketch->sketches[0]), 1);
+	union tagged_pointer *insert_sketch = FetchAndInc128(&(sketch->sketches[1]), 0);
+
+	uint64_t i, dest;
+	for (i = 0; i < sketch->size; i++) {
+		uint64_t src = query_sketch->sketch[i];
+		do {
+			dest = insert_sketch->sketch[i];
+		} while (src < dest && !__atomic_compare_exchange_n(&(insert_sketch->sketch[i]), &dest, src, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+	}
+
+	query_sketch = FetchAndInc128(&(sketch->sketches[0]), -1);
+	insert_sketch = FetchAndInc128(&(sketch->sketches[1]), -1);
+
+
+}
+
+
+void concurrent_merge(conc_minhash *sketch) {
+
+	// creation of new insert sketch
+	union tagged_pointer *insert_sketch, *query_sketch;
+	uint64_t *new_insert_sketch = malloc(sketch->size * sizeof(uint64_t));
+	if (new_insert_sketch == NULL) {
+		fprintf(stderr, "Error in malloc() for allocation of new insert sketch in merge \n");
+		exit(1);
+	}
+	init_empty_sketch_conc_minhash(new_insert_sketch, sketch->size);
+	union tagged_pointer *new_tp = alloc_aligned_tagged_pointer(new_insert_sketch, 1); 
+
+	do { // fail retry to publish new insert sketch 
+		insert_sketch = FetchAndInc128(&(sketch->sketches[1]), 0);
+	} while (!__atomic_compare_exchange_n(&(sketch->sketches[1]), insert_sketch, new_tp, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+
+	// wait until ongoing insertions have completed
+	while (__atomic_load_n(&(insert_sketch->counter), __ATOMIC_RELAXED) > 0);
+
+
+	// creation of query sketch → insert sketch must become the new query sketch
+	do { // fail retry to publish new query sketch (which is pointer by insert_sketch)
+		query_sketch = FetchAndInc128(&(sketch->sketches[0]), 0); // acquire query sketch
+	} while (!__atomic_compare_exchange_n(&(sketch->sketches[0]), query_sketch, insert_sketch, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+
+	sketch_values_update(sketch); // TODO
+
+	__atomic_store_n(&(sketch->insert_counter), 0, __ATOMIC_RELAXED);
+
+	cache_query_sketch(); // TODO
 
 }
 
@@ -171,14 +219,14 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val) {
 	uint64_t old_cntr = __atomic_load_n(&(sketch->insert_counter), __ATOMIC_RELAXED);
 	while (old_cntr > (sketch->b - 1)*sketch->N) {
 		if (! __atomic_compare_exchange_n(&(sketch->insert_counter), &old_cntr, -(sketch->N), 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {
-			conc_merge(sketch);
+			concurrent_merge(sketch);
 		}
 
 		old_cntr = __atomic_load_n(&(sketch->insert_counter), __ATOMIC_RELAXED);
 	}
 
 
-	while (sketch->insert_counter < 0); //wait for merge to complete
+	while (__atomic_load_n(&(sketch->insert_counter), __ATOMIC_RELAXED) < 0); //wait for merge to complete
 
 
 	union tagged_pointer *insert_sketch = FetchAndInc128(&(sketch->sketches[1]), 1);
