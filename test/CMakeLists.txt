@@ -31,14 +31,21 @@ if(CONC_MINHASH) #CONC_MINHASH
 endif()
 
 # Always available tests
-add_test(NAME test_serial COMMAND test_serial 100000 100 1)
-add_test(NAME test_serial_simil COMMAND test_serial_simil 100000 100 1)
+add_test(NAME test_serial COMMAND test_serial 1000000 100 1)
+add_test(NAME test_serial_simil COMMAND test_serial_simil 1000000 100 1)
 
 if(LOCKS OR RW_LOCKS)
     add_test(NAME test_parallel_lock COMMAND test_parallel_lock 100000 100 1 2)
 endif()
 
 if(FCDS)
-    add_test(NAME test_fcds COMMAND test_fcds 100000 100 1 2 1000 1)
-    add_test(NAME test_fcds2 COMMAND test_fcds 100000 100 1 11 1000 2)
+    add_test(NAME test_fcds COMMAND test_fcds 1000000 100 1 2 1000 0)
+    add_test(NAME test_fcds2 COMMAND test_fcds 1000000 100 1 8 1000 0)
+endif()
+
+
+if(CONC_MINHASH)
+    add_test(NAME test_conc_minhash_serial COMMAND test_conc_minhash 1000000 100 1 1 1000 0)
+    add_test(NAME test_conc_minhash_parallel COMMAND test_conc_minhash 1000000 100 1 2 1000 0)
+    add_test(NAME test_conc_minhash_parallel2 COMMAND test_conc_minhash 1000000 100 1 8 1000 0)
 endif()
