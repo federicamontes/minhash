@@ -12,7 +12,7 @@ struct minhash_configuration {
     uint64_t hash_type;   	   /// ID for hash function pointer
     int init_size;                 /// Initial elements to insert (optional)
     uint32_t k;                    /// Coefficient of k-wise hashing
-#if FCDS
+#if defined(FCDS) || defined(CONC_MINHASH)
     uint32_t N;                    // number of writing threads
     uint32_t b;                    // threshold for propagation
 #endif

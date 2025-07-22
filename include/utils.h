@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <hash.h>
 
-#if defined(FCDS)
+#if defined(FCDS) || defined(CONC_MINHASH)
 	#include <stdatomic.h>
 	typedef __int128_t aligned_int128 __attribute__((aligned(16)));
 
@@ -22,10 +22,6 @@ int basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t
 uint64_t *copy_sketch(const uint64_t *sketch, uint64_t size);
 
 int merge(uint64_t *sketch, uint64_t *other_sketch, uint64_t size);
-
-
-
-
 
 
 
