@@ -6,11 +6,14 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
-#if defined(LOCKS) || defined(RW_LOCKS) || defined(FCDS)
+#if defined(LOCKS) || defined(RW_LOCKS) || defined(FCDS) || defined(CONC_MINHASH)
     #include <pthread.h>
 #endif
 #if defined(FCDS)
 	#include <sketch_list.h>
+#endif
+#if defined(CONC_MINHASH)
+	#include <linked_list.h>
 #endif
 #include <hash.h>
 #include <utils.h>
@@ -106,6 +109,45 @@ float query_fcds(fcds_sketch *sketch,  uint64_t *otherSketch);
 union tagged_pointer* get_head(fcds_sketch *sketch);
 void decrement_counter(_Atomic(union tagged_pointer*) tp);
 void garbage_collector_list(fcds_sketch *sketch);
+
+#endif
+
+#ifdef CONC_MINHASH
+
+typedef struct conc_minhash {
+
+    uint32_t N;		   // number of writing threads
+	uint32_t b;		   // threshold for propagation
+	
+	uint64_t size; // size of the sketch
+
+	// hash functions
+	uint32_t hash_type;
+	void *hash_functions;
+	
+	_Atomic(union tagged_pointer *) sketches[2];
+	_Atomic int64_t insert_counter;  // number of insertions before merge
+
+	_Atomic uint64_t reclaiming; // flag to advise that reclamation is in progress
+    _Atomic(struct q_list *) head;  // doubly linked list for query sketches
+
+
+} conc_minhash;
+
+
+/** INIT AND CLEAR OPERATIONS */
+void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b);
+void init_empty_sketch_conc_minhash(uint64_t *sketch, uint64_t size);
+void init_values_conc_minhash(conc_minhash *sketch, uint64_t size);
+void free_conc_minhash(conc_minhash *sketch);
+
+union tagged_pointer *FetchAndInc128(_Atomic (union tagged_pointer *) *ins_sketch, uint64_t increment);
+
+
+/* SKETCH OPERATIONS */
+void insert_conc_minhash(conc_minhash *sketch, uint64_t val);
+void conc_merge(conc_minhash *sketch);
+void concurrent_basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t hash_type, uint64_t elem);
 
 #endif
 
