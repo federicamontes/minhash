@@ -49,6 +49,7 @@ void *thread_insert(void *arg) {
 
     long i;
     for (i=0; i < targ->n_inserts;i++) {
+        //printf("[%lu] insertion number %ld\n", targ->tid, i);
         insert_conc_minhash(t_sketch, i+targ->startsize);
     }
     
@@ -105,8 +106,8 @@ int main(int argc, const char*argv[]) {
     }
 
     long threshold = strtol(argv[5], &endptr, 10);
-    if (*endptr != '\0' || threshold < 1) {
-        fprintf(stderr, "threshold must be greater than zero!\n");
+    if (*endptr != '\0' || threshold <= 1) {
+        fprintf(stderr, "threshold must be greater than one!\n");
         return 1;
     }
     long num_query_threads = strtol(argv[6], &endptr, 10);
@@ -135,7 +136,7 @@ int main(int argc, const char*argv[]) {
     conf.sketch_size = (uint64_t) ssize;
     if (startsize > 0) conf.init_size = (uint64_t) startsize;
 
-    conf.N = num_threads; /// for now all the threads but one are writers
+    conf.N = num_threads; 
     conf.b = threshold;
 
     read_configuration(conf);
@@ -158,6 +159,8 @@ int main(int argc, const char*argv[]) {
     uint64_t current_start = startsize;
     uint64_t inserts_for_thread = chunk_size;
 
+    printf("Number of inserts %lu, inserts for threads %lu\n", n_inserts, inserts_for_thread);
+
     long i;
     for (i = 0; i < conf.N; i++) {
 
@@ -177,7 +180,7 @@ int main(int argc, const char*argv[]) {
     }
     
     
-    for (; i < conf.N + num_query_threads; i++){
+    /*for (; i < conf.N + num_query_threads; i++){
         targs[i].tid = i;
         targs[i].sketch = sketch;
         int rc = pthread_create(&threads[i], NULL, thread_query, &targs[i]);
@@ -185,7 +188,7 @@ int main(int argc, const char*argv[]) {
             fprintf(stderr, "Error creating thread query %lu\n", i);
             exit(1);
         }
-    }
+    }*/
     
     pthread_barrier_wait(&barrier);
 
@@ -212,11 +215,11 @@ int main(int argc, const char*argv[]) {
     printf("Elapsed time: %.3f ms\n", elapsed);
     gettimeofday(&start, NULL);
     // Join query threads
-    long q;
+    /*long q;
     for (q = 0; q < num_query_threads; q++) {
         //pthread_cancel(threads[q]);
         pthread_join(threads[conf.N + q], NULL); // or conf.N + q
-    }
+    }*/
 
 
     pthread_barrier_destroy(&barrier);
