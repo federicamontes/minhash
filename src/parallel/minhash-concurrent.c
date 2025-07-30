@@ -1,6 +1,27 @@
 #include <minhash.h>
 #include <configuration.h>
+#include <stdarg.h>
+#include <unistd.h>
 
+static bool debug_enabled = false;
+
+void set_debug_enabled(bool enabled) {
+    debug_enabled = enabled;
+}
+
+static inline void trace(const char *fmt, ...) {
+
+	if (!debug_enabled) return;
+
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    int len = vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    if (len > 0) {
+        write(STDOUT_FILENO, buf, len);
+    }
+}
 
 void init_empty_sketch_conc_minhash(uint64_t *sketch, uint64_t size) {
 

@@ -4,6 +4,8 @@
 #define SKETCH_SIZE 10 /// TODO: this has to be a parameter in the configuration directory
 
 #include <stdint.h>
+#include <stdbool.h>
+
 
 // Configuration struct for minhash parameters
 struct minhash_configuration {
@@ -19,6 +21,7 @@ struct minhash_configuration {
 };
 
 
+void set_debug_enabled(bool enabled);
 
 
 void read_configuration(struct minhash_configuration conf);

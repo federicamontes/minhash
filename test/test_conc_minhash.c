@@ -70,6 +70,8 @@ void *thread_query(void *arg) {
 
 int main(int argc, const char*argv[]) {
 
+    set_debug_enabled(false);
+
     if (argc < 7) {
         fprintf(stderr,
                 "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads>\n",
