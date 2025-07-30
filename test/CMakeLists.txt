@@ -41,6 +41,8 @@ endif()
 if(FCDS)
     add_test(NAME test_fcds COMMAND test_fcds 1000000 100 1 2 1000 0)
     add_test(NAME test_fcds2 COMMAND test_fcds 1000000 100 1 8 1000 0)
+    add_test(NAME test_fcds3 COMMAND test_fcds 1000000 100 1 8 50 0)  
+
 endif()
 
 
@@ -48,4 +50,5 @@ if(CONC_MINHASH)
     add_test(NAME test_conc_minhash_serial COMMAND test_conc_minhash 1000000 100 1 1 1000 0)
     add_test(NAME test_conc_minhash_parallel COMMAND test_conc_minhash 1000000 100 1 2 1000 0)
     add_test(NAME test_conc_minhash_parallel2 COMMAND test_conc_minhash 1000000 100 1 8 1000 0)
+    add_test(NAME test_conc_minhash_parallel3 COMMAND test_conc_minhash 1000000 100 1 8 50 0)
 endif()
