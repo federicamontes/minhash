@@ -9,7 +9,7 @@ void set_debug_enabled(bool enabled) {
     debug_enabled = enabled;
 }
 
-static inline void trace(const char *fmt, ...) {
+static inline void trace(int fd,const char *fmt, ...) {
 
 	if (!debug_enabled) return;
 
@@ -19,7 +19,7 @@ static inline void trace(const char *fmt, ...) {
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     if (len > 0) {
-        write(STDOUT_FILENO, buf, len);
+        write(fd, buf, len);
     }
 }
 
