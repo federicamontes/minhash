@@ -28,6 +28,29 @@ typedef struct {
 
 pthread_barrier_t barrier;
 
+
+static double elapsed_ms(struct timeval start, struct timeval end) {
+    double elapsed = (end.tv_sec - start.tv_sec) * 1000.0;
+    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;
+    return elapsed;
+}
+
+static void print_params(long n_inserts, long ssize, long startsize,
+                         long num_threads_total, long num_query_threads, long threshold)
+{
+    printf("=== Parameters ===\n");
+    printf("Number of insertions     : %ld\n", n_inserts);
+    printf("Sketch size              : %ld\n", ssize);
+    printf("Initial size             : %ld\n", startsize);
+    printf("Number of writer threads : %ld\n", num_threads_total - 1); /* user-facing writers count */
+    printf("Number of query threads  : %ld\n", num_query_threads);
+    printf("Threshold (b)            : %ld\n", threshold);
+    printf("Hash type                : %lu\n", conf.hash_type);
+    printf("Prime modulus            : %lu\n", conf.prime_modulus);
+    printf("Coefficient k-wise       : %d\n", conf.k);
+    printf("====================\n");
+}
+
 void minhash_print(fcds_sketch *sketch) {
 
     uint64_t i;
@@ -116,53 +139,13 @@ int main(int argc, const char*argv[]) {
         return 1;
     }
 
-    char *endptr;
-    long n_inserts = strtol(argv[1], &endptr, 10);
-    if (*endptr != '\0' || n_inserts <= 0){
-        fprintf(stderr, "n_inserts must be greater than zero!\n");
-        exit(1);
-    }
+    long n_inserts = parse_arg(argv[1], "n_inserts", 1);
+    long ssize = parse_arg(argv[2], "sketch_size", 1);
+    long startsize = parse_arg(argv[3], "start_size", 0);
+    long num_threads = parse_arg(argv[4], "num_threads", 2);
+    long threshold = parse_arg(argv[5], "threshold", 1);
+    long num_query_threads = parse_arg(argv[6], "num_query_threads", 0);
 
-    long ssize = strtol(argv[2], &endptr, 10);
-    if (*endptr != '\0' || ssize <= 0) {
-        fprintf(stderr, "Size of sketch must be greater than zero!\n");
-        exit(1);
-    }
-
-    long startsize = strtol(argv[3], &endptr, 10);
-    if (*endptr != '\0' || startsize < 0) {
-        fprintf(stderr, "Starting size of set must be greater (or equal to) than zero!\n");
-        exit(1);
-    }
-
-    long num_threads = strtol(argv[4], &endptr, 10);
-    if (*endptr != '\0' || num_threads <= 1) {
-        fprintf(stderr, "num_threads must be greater than one!\n");
-        return 1;
-    }
-
-    long threshold = strtol(argv[5], &endptr, 10);
-    if (*endptr != '\0' || threshold < 1) {
-        fprintf(stderr, "threshold must be greater than zero!\n");
-        return 1;
-    }
-    long num_query_threads = strtol(argv[6], &endptr, 10);
-    if (*endptr != '\0' || num_query_threads < 0) {
-        fprintf(stderr, "num_query_threads must be greater than or equal to zero!\n");
-        return 1;
-    }
-
-    printf("=== Parameters ===\n");
-    printf("Number of insertions     : %ld\n", n_inserts);
-    printf("Sketch size              : %ld\n", ssize);
-    printf("Initial size             : %ld\n", startsize);
-    printf("Number of writer threads : %ld\n", num_threads - 1);  // conf.N
-    printf("Number of query threads  : %ld\n", num_query_threads);
-    printf("Threshold (b)            : %ld\n", threshold);
-    printf("Hash type                : %lu\n", conf.hash_type);
-    printf("Prime modulus            : %lu\n", conf.prime_modulus);
-    printf("Coefficient k-wise       : %d\n", conf.k);
-    printf("====================\n");
 
     
     conf.sketch_size = (uint64_t) ssize;
@@ -171,13 +154,12 @@ int main(int argc, const char*argv[]) {
     conf.N = num_threads-1; /// for now all the threads but one are writers
     conf.b = threshold;
 
+    print_params(n_inserts, conf.sketch_size, conf.init_size, conf.N, num_query_threads, conf.b);
     read_configuration(conf);
 
 
     fcds_sketch *sketch;
-
     void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
-
     init_fcds(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
 
     pthread_barrier_init(&barrier, NULL, num_threads + num_query_threads);
@@ -247,11 +229,8 @@ int main(int argc, const char*argv[]) {
     // Get the end time
     gettimeofday(&end, NULL);
 
-    // Compute elapsed time in milliseconds
-    double elapsed = (end.tv_sec - start.tv_sec) * 1000.0;      // seconds to ms
-    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
+    printf("Insertion elapsed time: %.3f ms\n", elapsed_ms(start, end));
 
-    printf("Elapsed time: %.3f ms\n", elapsed);
     gettimeofday(&start, NULL);
     // Join query threads
     long q;
@@ -265,11 +244,7 @@ int main(int argc, const char*argv[]) {
     // Get the end time
     gettimeofday(&end, NULL);
 
-    // Compute elapsed time in milliseconds
-    elapsed = (end.tv_sec - start.tv_sec) * 1000.0;      // seconds to ms
-    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
-
-    printf("Elapsed time: %.3f ms\n", elapsed);
+    printf("Total elapsed time: %.3f ms\n", elapsed_ms(start, end));
 
 
 
