@@ -25,12 +25,12 @@
 
 typedef struct minhash_sketch {
 
-	uint64_t size;
-	uint64_t *sketch;
-	uint32_t hash_type;
-	void *hash_functions;
+	uint64_t size;				/// number of elements of the sketch
+	uint64_t *sketch;			/// ptr to the sketch
+	uint32_t hash_type;			/// type of hash function
+	void *hash_functions;		/// ptr to hash funcs
 #ifdef LOCKS
-	pthread_mutex_t lock;
+	pthread_mutex_t lock;	
 #endif
 #ifdef RW_LOCKS
 /** rw_locks guarantee that while a write_lock is acquired, no readers or writers can access the locked sketch
@@ -125,7 +125,12 @@ typedef struct conc_minhash {
 	uint32_t hash_type;
 	void *hash_functions;
 	
+	/** Tagged pointer for this sketch uses a single 64-bit counter, but
+	 * it is logically separated in two different 32-bit counters: one half for
+	 * the ongoing insertions, one half for the threshold-based insertions*/
 	_Atomic(union tagged_pointer *) sketches[2];
+	
+	/** if using single 64-bit counter this should be removed */
 	_Atomic int64_t insert_counter;  // number of insertions before merge
 
 	_Atomic uint64_t reclaiming; // flag to advise that reclamation is in progress
