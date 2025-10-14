@@ -3,6 +3,13 @@
 
 #include <utils.h>
 
+
+/** This tagged pointer is conceptually identical to the one in sketch_list.h
+ * used for FCDS implementation, it only differs for the type of the counter, which
+ * is a signed integer in this case since we might change it to a negative value
+ * It's a bit of duplicated code but that's life
+ * 
+ * */
 union tagged_pointer {
     struct {
         uint64_t* sketch;               // 64-bit pointer to the sketch
