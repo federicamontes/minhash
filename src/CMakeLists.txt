@@ -14,16 +14,12 @@ if(LOCKS OR RW_LOCKS)
       parallel/minhash-parallel-lock.c
 
     )
-endif()
-
-if(FCDS)
+elseif(FCDS)
   set(minhashcore_srcs ${minhashcore_srcs}
       fcds/minhash-fcds.c
       datatypes/sketch_list.c
     )
-endif()
-
-if(CONC_MINHASH)
+else()
   message(STATUS "Source CONCURRENT MINHASH sketch implementation.")
   set(minhashcore_srcs ${minhashcore_srcs}
       parallel/minhash-concurrent.c
