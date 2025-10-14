@@ -2,6 +2,8 @@
 #define CONFIGURATION_H
 
 #define SKETCH_SIZE 10 /// TODO: this has to be a parameter in the configuration directory
+#define PENDING_OFFSET 32 //this allows manipulating certain bits of the 46-bit counter in the tagger pointer
+#define MASK 0xFFFFFFFFULL
 
 #include <stdint.h>
 #include <stdbool.h>
