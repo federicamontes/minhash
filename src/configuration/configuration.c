@@ -5,6 +5,24 @@
 #include <inttypes.h>
 
 
+/** --- Argument parsing --- */
+long parse_arg(const char *arg, const char *name, long min) {
+    char *endptr;
+    long val = strtol(arg, &endptr, 10);
+    if (*endptr != '\0' || val < min) {
+        fprintf(stderr, "%s must be >= %ld\n", name, min);
+        exit(EXIT_FAILURE);
+    }
+    return val;
+}
+
+static double elapsed_ms(struct timeval a, struct timeval b) {
+    double ms = (b.tv_sec - a.tv_sec) * 1000.0;
+    ms += (b.tv_usec - a.tv_usec) / 1000.0;
+    return ms;
+}
+
+
 
 void read_configuration(struct minhash_configuration global_config) {
 
