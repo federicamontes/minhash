@@ -7,10 +7,10 @@
 #include <configuration.h>
 
 struct minhash_configuration conf = {
-    .sketch_size = 128,          /// Number of hash functions / sketch size
+    .sketch_size = 128,                      /// Number of hash functions / sketch size
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
-    .hash_type = 1,        /// ID for hash function pointer
-    .init_size = 0,                 /// Initial elements to insert (optional)
+    .hash_type = 1,                          /// ID for hash function pointer
+    .init_size = 0,                          /// Initial elements to insert (optional)
     .k = 3,
 };
 
@@ -25,6 +25,15 @@ typedef struct {
 
 pthread_barrier_t barrier;
 
+
+
+static double elapsed_ms(struct timeval start, struct timeval end) {
+    double elapsed = (end.tv_sec - start.tv_sec) * 1000.0;
+    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;
+    return elapsed;
+}
+
+
 void minhash_print(minhash_sketch *sketch) {
 
     uint64_t i;
@@ -33,6 +42,18 @@ void minhash_print(minhash_sketch *sketch) {
         printf(" %lu, ", sketch->sketch[i]);
     }
     printf("\n");
+}
+
+static void validate_sketches(minhash_sketch *s1, minhash_sketch *s2) {
+    for (long k = 0; k < s1->size; k++) {
+        if (s1->sketch[k] != s2->sketch[k]) {
+            fprintf(stderr,
+                    "Sketches differ at pos %ld: %lu vs %lu\n",
+                    k, s1->sketch[k], s2->sketch[k]);
+            exit(EXIT_FAILURE);
+        }
+    }
+    printf("Test passed!\n");
 }
 
 void do_insert(minhash_sketch *sketch, long n_inserts, uint64_t startsize) {
@@ -55,6 +76,36 @@ void *thread_insert(void *arg) {
 }
 
 
+/** thread launcher */
+
+static void launch_threads(pthread_t *threads, thread_arg_t *targs,
+                           long num_threads, long n_inserts, long startsize,
+                           minhash_sketch *sketch) {
+
+
+    uint64_t chunk_size   = n_inserts / num_threads;
+    uint64_t remainder    = n_inserts % num_threads;
+    uint64_t current_start = startsize;
+
+    for (long i = 0; i < num_threads; i++) {
+        uint64_t inserts_for_thread = chunk_size + (i == num_threads - 1 ? remainder : 0);
+
+        targs[i].tid        = i;
+        targs[i].n_inserts  = inserts_for_thread;
+        targs[i].startsize  = current_start;
+        targs[i].sketch     = sketch;
+
+        current_start += inserts_for_thread;
+
+        int rc = pthread_create(&threads[i], NULL, thread_insert, &targs[i]);
+        if (rc) {
+            fprintf(stderr, "Error creating thread %ld\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+
 int main(int argc, const char*argv[]) {
 
     if (argc < 5) {
@@ -64,86 +115,41 @@ int main(int argc, const char*argv[]) {
         return 1;
     }
 
-    char *endptr;
-    long n_inserts = strtol(argv[1], &endptr, 10);
-    if (*endptr != '\0' || n_inserts <= 0){
-        fprintf(stderr, "n_inserts must be greater than zero!\n");
-        exit(1);
-    }
+    long n_inserts   = parse_arg(argv[1], "n_inserts", 1);
+    long ssize       = parse_arg(argv[2], "sketch_size", 1);
+    long startsize   = parse_arg(argv[3], "start_size", 0);
+    long num_threads = parse_arg(argv[4], "num_threads", 2);
 
-    long ssize = strtol(argv[2], &endptr, 10);
-    if (*endptr != '\0' || ssize <= 0) {
-        fprintf(stderr, "Size of sketch must be greater than zero!\n");
-        exit(1);
-    }
-
-    long startsize = strtol(argv[3], &endptr, 10);
-    if (*endptr != '\0' || startsize < 0) {
-        fprintf(stderr, "Starting size of set must be greater (or equal to) than zero!\n");
-        exit(1);
-    }
-
-    long num_threads = strtol(argv[4], &endptr, 10);
-    if (*endptr != '\0' || num_threads <= 1) {
-        fprintf(stderr, "num_threads must be greater than one!\n");
-        return 1;
-    }
+   
     
     conf.sketch_size = (uint64_t) ssize;
     if (startsize > 0) conf.init_size = (uint64_t) startsize;
-
-
     read_configuration(conf);
 
 
-    minhash_sketch *sketch;
-    minhash_sketch *sketch2;
 
     void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
 
+    minhash_sketch *sketch, *sketch2;
     minhash_init(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
     minhash_init(&sketch2, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
 
     long i;
-    for (i = 0; i < n_inserts; i++) {
+    for (i = 0; i < n_inserts; i++) {     // Reference sequential insertion
         insert(sketch2, i+startsize);
     }
 
     /** THREAD DEFINITION */
 
-    pthread_barrier_init(&barrier, NULL, num_threads);
+    pthread_barrier_init(&barrier, NULL, num_threads+1);
 
 
     pthread_t threads[num_threads];
     thread_arg_t targs[num_threads];
 
-    uint64_t chunk_size = n_inserts / num_threads;
-    uint64_t remainder = n_inserts % num_threads;
-    uint64_t current_start = startsize;
-    uint64_t inserts_for_thread = chunk_size;
+    launch_threads(threads, targs, num_threads, n_inserts, startsize, sketch);
 
-
-    for (i = 0; i < num_threads - 1; i++) {
-
-        
-
-        targs[i].tid = i;
-        targs[i].n_inserts = inserts_for_thread;
-        targs[i].startsize = current_start;
-        targs[i].sketch = sketch;
-
-        current_start += inserts_for_thread;
-
-        int rc = pthread_create(&threads[i], NULL, thread_insert, &targs[i]);
-        if (rc) {
-            fprintf(stderr, "Error creating thread %lu\n", i);
-            exit(1);
-        }
-    }
-
-    if (i == num_threads - 1) {
-        inserts_for_thread += remainder;  // Last thread takes the leftover
-    }
+    
     pthread_barrier_wait(&barrier);
 
     struct timeval start, end;
@@ -161,17 +167,16 @@ int main(int argc, const char*argv[]) {
     // Get the end time
     gettimeofday(&end, NULL);
 
-    // Compute elapsed time in milliseconds
-    double elapsed = (end.tv_sec - start.tv_sec) * 1000.0;      // seconds to ms
-    elapsed += (end.tv_usec - start.tv_usec) / 1000.0;          // us to ms
-
-    printf("Elapsed time: %.3f ms\n", elapsed);
+    printf("Elapsed time: %.3f ms\n", elapsed_ms(start, end));
 
     pthread_barrier_destroy(&barrier);
 
 
     //minhash_print(sketch);
     //minhash_print(sketch2);
+
+    // Validate correctness
+    validate_sketches(sketch, sketch2);
 
     long k;
     for (k = 0; k < sketch->size; k++) {
@@ -184,5 +189,7 @@ int main(int argc, const char*argv[]) {
 
 
     minhash_free(sketch);
+    minhash_free(sketch2);
+
     return 0;
 }
