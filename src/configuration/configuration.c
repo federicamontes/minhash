@@ -1,8 +1,60 @@
+#define _GNU_SOURCE
+
 #include <configuration.h>
 #include <minhash.h>
 
 #include <math.h>
 #include <inttypes.h>
+#include <sched.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+
+/** --- Core pinning --- */
+
+int pin_thread_to_core(unsigned int core_id) {
+
+    cpu_set_t cpuset;
+    pthread_t thread;
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+
+    if (core_id < 0 || core_id >= num_cores) {
+        fprintf(stderr, "Error: core_id %d is out of range (0-%d)\n",
+                core_id, num_cores - 1);
+        return -1;
+    }
+
+    // Get the calling thread
+    thread = pthread_self();
+
+    // Initialize and set CPU set
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+
+    // Set affinity
+    int ret = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+    if (ret != 0) {
+        perror("pthread_setaffinity_np");
+        return ret;
+    }
+
+    // Optional: verify
+    CPU_ZERO(&cpuset);
+    ret = pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+    if (ret != 0) {
+        perror("pthread_getaffinity_np");
+        return ret;
+    }
+
+    if (CPU_ISSET(core_id, &cpuset))
+        printf("Thread successfully pinned to core %d\n", core_id);
+    else
+        fprintf(stderr, "Failed to pin thread to core %d\n", core_id);
+
+    return 0;
+
+}
+
 
 
 /** --- Argument parsing --- */

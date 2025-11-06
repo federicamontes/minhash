@@ -26,6 +26,7 @@ typedef struct {
     uint64_t startsize;
     long algorithm;
     double elapsed;
+    unsigned int core_id;
 } thread_arg_t;
 
 
@@ -64,7 +65,7 @@ void minhash_print(uint64_t *sketch, size_t size) {
     printf("\n");
 }
 
-void compare_with_serial(conc_minhash *sketch,
+void do_compare_with_serial(conc_minhash *sketch,
                          void *hash_functions,
                          uint64_t sketch_size,
                          uint64_t init_size,
@@ -106,6 +107,9 @@ void *thread_insert(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
     struct timeval t1, t2;
     conc_minhash *t_sketch = targ->sketch;
+    
+    pin_thread_to_core(targ->core_id);
+
     pthread_barrier_wait(&barrier);
 
     gettimeofday(&t1, NULL);
@@ -129,6 +133,10 @@ void *thread_query(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
     struct timeval t1, t2;
     conc_minhash *t_sketch = targ->sketch;
+    
+
+    pin_thread_to_core(targ->core_id);
+
 
     // Synchronize all threads before starting insertion
     pthread_barrier_wait(&barrier);
@@ -156,6 +164,8 @@ int main(int argc, const char*argv[]) {
                 argv[0]);
         return 1;
     }
+
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
 
     long n_inserts = parse_arg(argv[1], "n_inserts", 1);
     long ssize = parse_arg(argv[2], "sketch_size", 1);
@@ -218,6 +228,8 @@ int main(int argc, const char*argv[]) {
         targs[i].sketch = sketch;
         targs[i].algorithm = algorithm;
 
+        targs[i].core_id = i % num_cores;  
+
         current_start += inserts_for_thread;
 
         int rc = pthread_create(&threads[i], NULL, thread_insert, &targs[i]);
@@ -232,6 +244,7 @@ int main(int argc, const char*argv[]) {
     for (; i < conf.N + num_query_threads; i++){
         targs[i].tid = i;
         targs[i].sketch = sketch;
+        targs[i].core_id = i % num_cores;
         int rc = pthread_create(&threads[i], NULL, thread_query, &targs[i]);
         if (rc) {
             fprintf(stderr, "Error creating thread query %lu\n", i);
@@ -301,6 +314,6 @@ int main(int argc, const char*argv[]) {
 
 
     if (compare_with_serial)
-        compare_with_serial(sketch, hash_functions, sketch->size, conf.init_size, n_inserts, remainder, conf.hash_type);
+        do_compare_with_serial(sketch, hash_functions, sketch->size, conf.init_size, n_inserts, remainder, conf.hash_type);
     return 0;
 }
