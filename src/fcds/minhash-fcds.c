@@ -290,8 +290,8 @@ void *propagator(fcds_sketch *sketch) {
                         // if(0) minhash_print(sketch);
 
                         //TODO create new node in list of sketch_list
-                        uint64_t *version_sketch = copy_sketch(sketch->global_sketch, sketch->size);
-                        create_and_push_new_node(&sketch->sketch_list, version_sketch, sketch->size);
+                        //uint64_t *version_sketch = copy_sketch(sketch->global_sketch, sketch->size);
+                        //create_and_push_new_node(&sketch->sketch_list, version_sketch, sketch->size);
                     }
 
                     // After propagation is complete, atomically set the flag back to 0.
@@ -309,7 +309,7 @@ void *propagator(fcds_sketch *sketch) {
 
         // TODO here propagator thread must check if 
         // memory reclamation is possible in sketch_list
-        garbage_collector_list(sketch);
+        //garbage_collector_list(sketch);
 
     }
     return NULL;
