@@ -19,15 +19,17 @@ struct minhash_configuration conf = {
 
 
 
+
 typedef struct {
     pthread_t tid;
-    conc_minhash *sketch;
+    fcds_sketch *sketch;
     long n_queries;
     uint64_t startsize;
-    long algorithm;
     double elapsed;
     unsigned int core_id;
 } thread_arg_t;
+
+
 
 long to_insert;
 pthread_barrier_t barrier;
@@ -66,83 +68,74 @@ void minhash_print(uint64_t *sketch, size_t size) {
     printf("\n");
 }
 
-void do_compare_with_serial(conc_minhash *sketch,
-                         void *hash_functions,
-                         uint64_t sketch_size,
-                         uint64_t init_size,
-                         long n_inserts,
-                         uint64_t remainder,
-                         int hash_type) 
-{
-    minhash_sketch *serial_sketch;
 
-    // Initialize serial version
-    minhash_init(&serial_sketch, hash_functions, sketch_size, init_size, hash_type);
-
-    // Perform serial insertions
-    for (uint64_t i = 0; i < n_inserts + init_size - remainder; i++) {
-        insert(serial_sketch, i);
-    }
-
-    // Compare serial vs concurrent sketch results
-    int count = 0;
-    for (uint64_t i = 0; i < sketch->size; i++) {
-        if (serial_sketch->sketch[i] == sketch->sketches[1]->sketch[i])
-            count++;
-        else
-            printf("different %lu - %u --- %u!\n",
-                   i, serial_sketch->sketch[i], sketch->sketches[1]->sketch[i]);
-    }
-
-    if (count == sketch->size)
-        printf("✅ Test passato eddaje!\n");
-    else
-        printf("❌ NOOOO Test failed: %d/%lu elements match.\n", count, sketch->size);
-
-    // Optional cleanup
-    free(serial_sketch);
-}
 
 void *thread_query(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
-    conc_minhash *t_sketch = targ->sketch;
 
-    pin_thread_to_core(targ->core_id);
-
+    fcds_sketch *t_sketch = targ->sketch;
 
     // Synchronize all threads before starting insertion
     pthread_barrier_wait(&barrier);
 
+    for (int i = 0; i < targ->n_queries; i++)
+       query_fcds(t_sketch, t_sketch->global_sketch);
+    
+    fprintf(stderr, "Query thread %lu done\n", targ->tid);
+    return NULL;
+}
 
-    int i;
-    for (i=0; i < targ->n_queries; i++)
-       concurrent_query(t_sketch, t_sketch->sketches[0]->sketch);
 
-    //fprintf(stderr, "Thread finished %lu\n", targ->tid);
+void local_insert(uint64_t *sketch, void *hash_functions, uint32_t hash_type, uint64_t size, _Atomic uint32_t *prop, long n_inserts, uint64_t startsize,  uint32_t b) {
+
+    long i;
+    uint32_t insertion_counter = 0;
+    for (;;) {
+        i = __sync_fetch_and_add(&to_insert, 1);
+        insert_fcds(sketch, hash_functions, hash_type, size, &insertion_counter, prop, b, i+startsize);
+
+    }
+}
+
+void *propagator_routine(void *arg) {
+    thread_arg_t *targ = (thread_arg_t *)arg;
+
+    fcds_sketch *t_sketch = targ->sketch;
+    propagator(t_sketch);
+
     return NULL;
 }
 
 
 void *thread_insert(void *arg) {
+
+    struct timeval t1, t2;
     thread_arg_t *targ = (thread_arg_t *)arg;
-    conc_minhash *t_sketch = targ->sketch;
-    
+
+    fcds_sketch *t_sketch = targ->sketch;
+    uint64_t *local_sketch = t_sketch->local_sketches[targ->tid];
+    _Atomic uint32_t *propi = &(t_sketch->prop[targ->tid]);
+
     pin_thread_to_core(targ->core_id);
 
     pthread_barrier_wait(&barrier);
 
-    long i;
-
-    for (;;) {
-        //printf("[%lu] insertion number %ld\n", targ->tid, i);
-        i = __sync_fetch_and_add(&to_insert, 1);
-        if (!targ->algorithm) {
-            insert_conc_minhash_0(t_sketch, i+targ->startsize);
-        } else {
-            insert_conc_minhash(t_sketch, i+targ->startsize);
-        }
-    }
+    gettimeofday(&t1, NULL);
+    local_insert(local_sketch, t_sketch->hash_functions, t_sketch->hash_type, t_sketch->size,
+        propi, 0, targ->startsize, t_sketch->b);
+        
+        
+    uint32_t expected_prop = 0; // Only transition from 0 to 1
+    while (! __atomic_compare_exchange_n(propi, &expected_prop, 1, 0, // Not weak CAS (strong CAS)
+                                        __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {
+            // DO NOTHING
+            ;                                
+    } // Since only two threads uses this prop, the busy-wait should be ok
+       
     
+    
+    gettimeofday(&t2, NULL);
+    targ->elapsed = elapsed_ms(t1, t2);
     //fprintf(stderr, "[thread_insert] %u has finished \n", gettid()%t_sketch->N);
     return NULL;
 }
@@ -150,14 +143,12 @@ void *thread_insert(void *arg) {
 
 
 
+
 int main(int argc, const char*argv[]) {
 
-    set_debug_enabled(false);
-    bool compare_with_serial = false;
-
-    if (argc < 8) {
+    if (argc < 7) {
         fprintf(stderr,
-                "Usage: %s <number of queries> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> <algorithm>\n",
+                "Usage: %s <number of queries> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> \n",
                 argv[0]);
         return 1;
     }
@@ -170,7 +161,6 @@ int main(int argc, const char*argv[]) {
     long num_threads = parse_arg(argv[4], "num_threads", 1);
     long threshold = parse_arg(argv[5], "threshold", 1);
     long num_query_threads = parse_arg(argv[6], "num_query_threads", 0);
-    long algorithm = parse_arg(argv[7], "algorithm", 0); //0 is baseline version, 1 is paper version
 
 
 
@@ -192,12 +182,12 @@ int main(int argc, const char*argv[]) {
     read_configuration(conf);
 
 
-    conc_minhash *sketch;
+    fcds_sketch *sketch;
 
     void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
-    init_conc_minhash(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
+    init_fcds(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
 
-    pthread_barrier_init(&barrier, NULL, num_threads + num_query_threads);
+    pthread_barrier_init(&barrier, NULL, num_threads + num_query_threads - 1);
 
 
     pthread_t threads[conf.N + num_query_threads]; // consider #writers + propagator
@@ -215,12 +205,20 @@ int main(int argc, const char*argv[]) {
 
 
     /** launch query threads */
-    long i;
-    for (i=0; i < conf.N; i++){
+    long i = 0;
+
+    targs[i].tid = i;
+    targs[i].sketch = sketch;
+    int rc = pthread_create(&threads[i], NULL, propagator_routine, &targs[i]);
+    if (rc) {
+        fprintf(stderr, "Error creating propagator thread %lu\n", i);
+        exit(1);
+    }
+
+    for (i=1; i < conf.N; i++){
         targs[i].tid = i;
         targs[i].sketch = sketch;
         targs[i].core_id = i % num_cores;
-        targs[i].algorithm = algorithm;
         int rc = pthread_create(&threads[i], NULL, thread_insert, &targs[i]);
         if (rc) {
             fprintf(stderr, "Error creating thread query %lu\n", i);
@@ -273,13 +271,6 @@ int main(int argc, const char*argv[]) {
     // Get the end time
 
     gettimeofday(&global_end, NULL);
-
-
-    printf("Query threads finished. Elapsed wall-clock time: %.3f ms\n",
-       elapsed_ms(writer_start, writer_end));
-    printf("Query thread times: avg %.3f ms, min %.3f ms, max %.3f ms\n",
-       insert_sum / num_query_threads, insert_min, insert_max);
-
 
     printf("Total program elapsed time: %.3f ms\n",
            elapsed_ms(global_start, global_end));

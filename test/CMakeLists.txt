@@ -19,19 +19,19 @@ elseif(FCDS)
     add_executable(test_fcds fcds/test_fcds.c)
     add_executable(test_fcds_wronly fcds/test_only_writes.c)
     #add_executable(test_fcds_fix_wr fcds/test_fixed_writes_infinite_query.c)
-    #add_executable(test_fcds_fix_qr fcds/test_fixed_queries_infinite_write.c)
+    add_executable(test_fcds_fix_qr fcds/test_fixed_queries_infinite_write.c)
     #add_executable(test_fcds_prob fcds/test_conc_prob_ops.c)
 
     target_link_libraries(test_fcds PRIVATE minhashcore)
     target_link_libraries(test_fcds_wronly PRIVATE minhashcore)
     #target_link_libraries(test_fcds_fix_wr PRIVATE minhashcore)
-    #target_link_libraries(test_fcds_fix_qr PRIVATE minhashcore)
+    target_link_libraries(test_fcds_fix_qr PRIVATE minhashcore)
     #target_link_libraries(test_fcds_prob PRIVATE minhashcore)
 
     target_include_directories(test_fcds PRIVATE ${CMAKE_SOURCE_DIR}/include)
     target_include_directories(test_fcds_wronly PRIVATE ${CMAKE_SOURCE_DIR}/include)
     #target_include_directories(test_fcds_fix_wr PRIVATE ${CMAKE_SOURCE_DIR}/include)
-    #target_include_directories(test_fcds_fix_qr PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(test_fcds_fix_qr PRIVATE ${CMAKE_SOURCE_DIR}/include)
     #target_include_directories(test_fcds_prob PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 else() #CONC_MINHASH
