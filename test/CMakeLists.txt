@@ -22,8 +22,11 @@ elseif(FCDS)
 else() #CONC_MINHASH
 
     add_executable(test_conc_minhash test_conc_minhash.c)
+    add_executable(test_wronly test_only_writes.c)
     target_link_libraries(test_conc_minhash PRIVATE minhashcore)
+    target_link_libraries(test_wronly PRIVATE minhashcore)
     target_include_directories(test_conc_minhash PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(test_wronly PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
 # Always available tests
