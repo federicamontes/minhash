@@ -27,6 +27,7 @@ void set_debug_enabled(bool enabled);
 
 int pin_thread_to_core(unsigned int core_id);
 long parse_arg(const char *arg, const char *name, long min);
+double parse_double(const char *arg, const char *name, long min);
 void read_configuration(struct minhash_configuration conf);
 
 #endif
