@@ -187,12 +187,12 @@ void insert_fcds(uint64_t *local_sketch, void *hash_functions, uint32_t hash_typ
 
 
 
-uint64_t *get_global_sketch(fcds_sketch *sketch){
 /** return a copy of global_sketch in sketch.
 * The actual algorithm is an impementation of a double collect mechanism in which a copy of global_sketch is generated, then it is compared with global_sketch to check
 * if a modification occured in the middle. If so, the last sketch in the shared list is returned.
 * This algorithm should guarantee overall correctness since the returned sketch is a valid state in the query's time interval
 */
+uint64_t *get_global_sketch(fcds_sketch *sketch){
 
   uint64_t *copy = copy_sketch(sketch->global_sketch, sketch->size);
   
@@ -290,8 +290,8 @@ void *propagator(fcds_sketch *sketch) {
                         // if(0) minhash_print(sketch);
 
                         //TODO create new node in list of sketch_list
-                        //uint64_t *version_sketch = copy_sketch(sketch->global_sketch, sketch->size);
-                        //create_and_push_new_node(&sketch->sketch_list, version_sketch, sketch->size);
+                        uint64_t *version_sketch = copy_sketch(sketch->global_sketch, sketch->size);
+                        create_and_push_new_node(&sketch->sketch_list, version_sketch, sketch->size);
                     }
 
                     // After propagation is complete, atomically set the flag back to 0.
