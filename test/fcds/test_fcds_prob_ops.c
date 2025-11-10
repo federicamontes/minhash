@@ -11,7 +11,7 @@
 struct minhash_configuration conf = {
     .sketch_size = 128,          /// Number of hash functions / sketch size
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
-    .hash_type = 0,        /// ID for hash function pointer
+    .hash_type = 1,        /// ID for hash function pointer
     .init_size = 0,                 /// Initial elements to insert (optional)
     .k = 5,
     .N = 0,
