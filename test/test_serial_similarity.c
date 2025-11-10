@@ -9,8 +9,11 @@ struct minhash_configuration conf = {
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
     .hash_type = 0,        /// ID for hash function pointer
     .init_size = 0,                 /// Initial elements to insert (optional)
-    .k = 3,
+    .k = 5,
+    .N = 0,
+    .b = 0,
 };
+
 
 
 int main(int argc, const char*argv[]) {

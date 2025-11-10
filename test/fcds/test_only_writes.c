@@ -126,7 +126,7 @@ int main(int argc, const char*argv[]) {
 
     if (argc < 6) {
         fprintf(stderr,
-                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion>\n",
+                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion> <hash coefficient> \n",
                 argv[0]);
         return 1;
     }
@@ -139,6 +139,10 @@ int main(int argc, const char*argv[]) {
     long num_threads = parse_arg(argv[4], "num_threads", 1);
     long threshold = parse_arg(argv[5], "threshold", 1);
 
+    if (argc > 6) {
+        long k_cofficient = parse_arg(argv[6], "hash coefficient", 1);
+        conf.k = k_cofficient;
+    }
 
 
     // when finished debugging remove comment

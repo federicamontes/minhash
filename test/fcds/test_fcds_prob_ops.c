@@ -7,6 +7,7 @@
 #include <configuration.h>
 
 
+
 struct minhash_configuration conf = {
     .sketch_size = 128,          /// Number of hash functions / sketch size
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
@@ -21,12 +22,12 @@ struct minhash_configuration conf = {
 
 typedef struct {
     pthread_t tid;
-    conc_minhash *sketch;
+    fcds_sketch *sketch;
     long n_inserts;
     uint64_t startsize;
-    long algorithm;
     double elapsed;
     unsigned int core_id;
+    double prob;
 } thread_arg_t;
 
 
@@ -66,61 +67,40 @@ void minhash_print(uint64_t *sketch, size_t size) {
     printf("\n");
 }
 
-void do_compare_with_serial(conc_minhash *sketch,
-                         void *hash_functions,
-                         uint64_t sketch_size,
-                         uint64_t init_size,
-                         long n_inserts,
-                         uint64_t remainder,
-                         int hash_type) 
-{
-    minhash_sketch *serial_sketch;
 
-    // Initialize serial version
-    minhash_init(&serial_sketch, hash_functions, sketch_size, init_size, hash_type);
+void *propagator_routine(void *arg) {
+    thread_arg_t *targ = (thread_arg_t *)arg;
 
-    // Perform serial insertions
-    for (uint64_t i = 0; i < n_inserts + init_size - remainder; i++) {
-        insert(serial_sketch, i);
-    }
+    fcds_sketch *t_sketch = targ->sketch;
+    propagator(t_sketch);
 
-    // Compare serial vs concurrent sketch results
-    int count = 0;
-    for (uint64_t i = 0; i < sketch->size; i++) {
-        if (serial_sketch->sketch[i] == sketch->sketches[1]->sketch[i])
-            count++;
-        else
-            printf("different %lu - %u --- %u!\n",
-                   i, serial_sketch->sketch[i], sketch->sketches[1]->sketch[i]);
-    }
-
-    if (count == sketch->size)
-        printf("✅ Test passato eddaje!\n");
-    else
-        printf("❌ NOOOO Test failed: %d/%lu elements match.\n", count, sketch->size);
-
-    // Optional cleanup
-    free(serial_sketch);
+    return NULL;
 }
 
 
-void *thread_insert(void *arg) {
+void *thread_routine(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
     struct timeval t1, t2;
-    conc_minhash *t_sketch = targ->sketch;
-    
+    fcds_sketch *t_sketch = targ->sketch;
+    double prob = targ->prob;
+    uint64_t *local_sketch = t_sketch->local_sketches[targ->tid];
+    _Atomic uint32_t *propi = &(t_sketch->prop[targ->tid]);
+    uint32_t insertion_counter = 0;
+
     pin_thread_to_core(targ->core_id);
 
     pthread_barrier_wait(&barrier);
 
     gettimeofday(&t1, NULL);
     long i;
+    unsigned int state = targ->tid;
     for (i=0; i < targ->n_inserts;i++) {
         //printf("[%lu] insertion number %ld\n", targ->tid, i);
-        if (!targ->algorithm) {
-            insert_conc_minhash_0(t_sketch, i+targ->startsize);
+        if (rand_r(&state) < prob*RAND_MAX) {
+            insert_fcds(local_sketch, t_sketch->hash_functions, t_sketch->hash_type, 
+                t_sketch->size, &insertion_counter, propi, t_sketch->b, i+targ->startsize);
         } else {
-            insert_conc_minhash(t_sketch, i+targ->startsize);
+            query_fcds(t_sketch, t_sketch->global_sketch);
         }
     }
     
@@ -135,25 +115,22 @@ void *thread_insert(void *arg) {
 
 int main(int argc, const char*argv[]) {
 
-    set_debug_enabled(false);
-    bool compare_with_serial = false;
 
     if (argc < 7) {
         fprintf(stderr,
-                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion> <algorithm> <hash coefficient>\n",
+                "Usage: %s <number of operations> <sketch_size> <initial size> <num_threads> <threshold insertion>  <write probability> <hash coefficient>\n",
                 argv[0]);
         return 1;
     }
 
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
 
-    long n_inserts = parse_arg(argv[1], "n_inserts", 1);
+    long n_ops = parse_arg(argv[1], "n_ops", 1);
     long ssize = parse_arg(argv[2], "sketch_size", 1);
     long startsize = parse_arg(argv[3], "start_size", 0);
     long num_threads = parse_arg(argv[4], "num_threads", 1);
     long threshold = parse_arg(argv[5], "threshold", 1);
-    long algorithm = parse_arg(argv[6], "algorithm", 0); //0 is baseline version, 1 is paper version
-
+    double prob = parse_double(argv[6], "probability", 0);
 
     if (argc > 7) {
         long k_cofficient = parse_arg(argv[7], "hash coefficient", 1);
@@ -173,47 +150,56 @@ int main(int argc, const char*argv[]) {
     conf.N = num_threads; 
     conf.b = threshold;
 
-    print_params(n_inserts, conf.sketch_size, conf.init_size, conf.N, 0, conf.b);
+    print_params(n_ops, conf.sketch_size, conf.init_size, conf.N, 0, conf.b);
     read_configuration(conf);
 
 
-    conc_minhash *sketch;
+    fcds_sketch *sketch;
 
     void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
-    init_conc_minhash(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
+    init_fcds(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
 
-    pthread_barrier_init(&barrier, NULL, num_threads);
+    pthread_barrier_init(&barrier, NULL, num_threads - 1);
 
 
     pthread_t threads[conf.N]; // consider #writers + propagator
     thread_arg_t targs[conf.N]; 
 
-    uint64_t chunk_size = n_inserts / conf.N;
-    uint64_t remainder = n_inserts % conf.N;
+    uint64_t chunk_size = n_ops / conf.N;
+    uint64_t remainder = n_ops % conf.N;
     uint64_t current_start = startsize;
     uint64_t inserts_for_thread = chunk_size;
 
-    printf("Number of inserts %lu, inserts for threads %lu\n", n_inserts, inserts_for_thread);
+    printf("Number of operations %lu, operations for threads %lu\n", n_ops, inserts_for_thread);
 
 
     gettimeofday(&global_start, NULL);  // GLOBAL TIME
 
+    long i = 0;
+
+    /** launch propagator */
+    targs[i].tid = i;
+    targs[i].sketch = sketch;
+    int rc = pthread_create(&threads[i], NULL, propagator_routine, &targs[i]);
+    if (rc) {
+        fprintf(stderr, "Error creating propagator thread %lu\n", i);
+        exit(1);
+    }
+
     /** launch writer threads */
-    long i;
-    for (i = 0; i < conf.N-1; i++) {
+    for (i = 1; i < conf.N-1; i++) {
 
         
         targs[i].tid = i;
         targs[i].n_inserts = inserts_for_thread;
         targs[i].startsize = current_start;
         targs[i].sketch = sketch;
-        targs[i].algorithm = algorithm;
-
+        targs[i].prob      = prob;
         targs[i].core_id = i % num_cores;  
 
         current_start += inserts_for_thread;
 
-        int rc = pthread_create(&threads[i], NULL, thread_insert, &targs[i]);
+        int rc = pthread_create(&threads[i], NULL, thread_routine, &targs[i]);
         if (rc) {
             fprintf(stderr, "Error creating thread %lu\n", i);
             exit(1);
@@ -225,18 +211,19 @@ int main(int argc, const char*argv[]) {
     targs[i].n_inserts = remainder;
     targs[i].startsize = current_start;
     targs[i].sketch = sketch;
-    targs[i].algorithm = algorithm;
+    targs[i].prob      = prob;
+
 
     targs[i].core_id = i % num_cores;
 
     // Get the start time
     gettimeofday(&writer_start, NULL);
 
-    thread_insert(&targs[i]);
+    thread_routine(&targs[i]);
    
 
     long j;
-    for (j = 0; j < conf.N-1; j++) {
+    for (j = 1; j < conf.N-1; j++) {
         pthread_join(threads[j], NULL);
         double t = targs[j].elapsed;
         insert_sum += t;
@@ -253,9 +240,9 @@ int main(int argc, const char*argv[]) {
     gettimeofday(&global_end, NULL);
 
 
-    printf("Writer threads finished. Elapsed wall-clock time: %.3f ms\n",
+    printf("Threads finished. Elapsed wall-clock time: %.3f ms\n",
        elapsed_ms(writer_start, writer_end));
-    printf("Writer thread times: avg %.3f ms, min %.3f ms, max %.3f ms\n",
+    printf("Thread times: avg %.3f ms, min %.3f ms, max %.3f ms\n",
        insert_sum / conf.N, insert_min, insert_max);
 
 
@@ -266,8 +253,5 @@ int main(int argc, const char*argv[]) {
 
     //minhash_print(sketch->sketches[1]->sketch, sketch->size);
 
-
-    if (compare_with_serial)
-        do_compare_with_serial(sketch, hash_functions, sketch->size, conf.init_size, n_inserts, remainder, conf.hash_type);
     return 0;
 }

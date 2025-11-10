@@ -148,7 +148,7 @@ int main(int argc, const char*argv[]) {
 
     if (argc < 7) {
         fprintf(stderr,
-                "Usage: %s <number of queries> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> \n",
+                "Usage: %s <number of queries> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> <hash coefficient> \n",
                 argv[0]);
         return 1;
     }
@@ -162,7 +162,10 @@ int main(int argc, const char*argv[]) {
     long threshold = parse_arg(argv[5], "threshold", 1);
     long num_query_threads = parse_arg(argv[6], "num_query_threads", 0);
 
-
+    if (argc > 7) {
+        long k_cofficient = parse_arg(argv[7], "hash coefficient", 1);
+        conf.k = k_cofficient;
+    }
 
 
     // when finished debugging remove comment
@@ -204,9 +207,9 @@ int main(int argc, const char*argv[]) {
     gettimeofday(&global_start, NULL);  // GLOBAL TIME
 
 
-    /** launch query threads */
     long i = 0;
 
+    /** launch propagator */
     targs[i].tid = i;
     targs[i].sketch = sketch;
     int rc = pthread_create(&threads[i], NULL, propagator_routine, &targs[i]);
@@ -215,6 +218,7 @@ int main(int argc, const char*argv[]) {
         exit(1);
     }
 
+    /** launch writer threads */
     for (i=1; i < conf.N; i++){
         targs[i].tid = i;
         targs[i].sketch = sketch;
@@ -226,7 +230,7 @@ int main(int argc, const char*argv[]) {
         }
     }
 
-    /** launch writer threads */
+    /** launch query threads */
     for (; i < num_query_threads+conf.N-1; i++) {
 
         

@@ -157,7 +157,7 @@ int main(int argc, const char*argv[]) {
 
     if (argc < 8) {
         fprintf(stderr,
-                "Usage: %s <number of queries> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> <algorithm>\n",
+                "Usage: %s <number of queries> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> <algorithm> <hash coefficient>\n",
                 argv[0]);
         return 1;
     }
@@ -172,6 +172,10 @@ int main(int argc, const char*argv[]) {
     long num_query_threads = parse_arg(argv[6], "num_query_threads", 0);
     long algorithm = parse_arg(argv[7], "algorithm", 0); //0 is baseline version, 1 is paper version
 
+    if (argc > 8) {
+        long k_cofficient = parse_arg(argv[8], "hash coefficient", 1);
+        conf.k = k_cofficient;
+    }
 
 
 
