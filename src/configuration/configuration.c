@@ -108,7 +108,7 @@ void * hash_functions_init(uint64_t hf_id, uint64_t size, uint32_t prime_modulus
             for (i=0; i < size; i++) {
                 k_hash_functions[i].M = prime_modulus;
                 k_hash_functions[i].k = k;
-                k_hash_functions[i].coefficients = malloc(k_hash_functions[i].k + 1 * sizeof(uint32_t));
+                k_hash_functions[i].coefficients = malloc((k_hash_functions[i].k + 1) * sizeof(uint32_t));
                 if (k_hash_functions[i].coefficients == NULL) {
                     fprintf(stderr, "Error in malloc() when allocating kwise hash functions coefficients\n");
                     exit(1);
