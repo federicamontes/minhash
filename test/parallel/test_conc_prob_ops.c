@@ -211,33 +211,63 @@ int main(int argc, const char*argv[]) {
     for (i = 0; i < conf.N-1; i++) {
 
         
-        targs[i].tid = i;
+
+        // determine work size and starting position for thread i
+	if (i < remainder) {
+		// First 'remainder' threads get the base chunk plus one
+	    inserts_for_thread = chunk_size + 1;
+		
+		//  start position is offset by the work done by previous threads.
+		// The previous 'i' threads each got (chunk_size + 1).
+	    current_start = startsize + (i * (chunk_size + 1));
+	} else {
+		// Remaining threads get only the base chunk size
+	    inserts_for_thread = chunk_size;
+		
+		//  start position is calculated as:
+		// (Work of the 'remainder' threads) + (Work of the preceding 'chunk_size' threads)
+	    current_start = startsize + 
+			(remainder * (chunk_size + 1)) + 
+			((i - remainder) * chunk_size);
+	}
+	targs[i].tid = i;
         targs[i].n_inserts = inserts_for_thread;
         targs[i].startsize = current_start;
-        targs[i].sketch = sketch;
-        targs[i].algorithm = algorithm;
-        targs[i].prob      = prob;
-        targs[i].core_id = i % num_cores;  
+	targs[i].sketch    = sketch;
+	targs[i].algorithm = algorithm;
+	targs[i].prob      = prob;
+	targs[i].core_id   = i % num_cores;  
 
-        current_start += inserts_for_thread;
+	current_start += inserts_for_thread;
 
-        int rc = pthread_create(&threads[i], NULL, thread_routine, &targs[i]);
-        if (rc) {
-            fprintf(stderr, "Error creating thread %lu\n", i);
-            exit(1);
-        }
+	int rc = pthread_create(&threads[i], NULL, thread_routine, &targs[i]);
+	if (rc) {
+	    fprintf(stderr, "Error creating thread %lu\n", i);
+	    exit(1);
+	}
+    }
+    
+    if (i < remainder) {
+        inserts_for_thread = chunk_size + 1;
+    
+        current_start = startsize + (i * (chunk_size + 1));
+    } else {
+        inserts_for_thread = chunk_size;
+        current_start = startsize + 
+                        (remainder * (chunk_size + 1)) + // Total work of the first remainder threads
+                        ((i - remainder) * chunk_size);  // total work of the preceding chunk_size threads
     }
     
     
-    targs[i].tid = i;
-    targs[i].n_inserts = remainder;
+    targs[i].tid       = i;
+    targs[i].n_inserts = inserts_for_thread;
     targs[i].startsize = current_start;
-    targs[i].sketch = sketch;
+    targs[i].sketch    = sketch;
     targs[i].algorithm = algorithm;
     targs[i].prob      = prob;
 
 
-    targs[i].core_id = i % num_cores;
+    targs[i].core_id   = i % num_cores;
 
     // Get the start time
     gettimeofday(&writer_start, NULL);
