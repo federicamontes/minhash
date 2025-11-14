@@ -237,7 +237,23 @@ int main(int argc, const char*argv[]) {
     /** launch writer threads */
     for (; i < num_query_threads+conf.N-1; i++) {
 
-        
+	if (i < num_query_threads+ remainder) { // takes into account that the first num_query_threads threads are for query
+		// First 'remainder' threads get the base chunk plus one
+	    inserts_for_thread = chunk_size + 1;
+		
+		//  start position is offset by the work done by previous threads.
+		// The previous 'i' threads each got (chunk_size + 1).
+	    current_start = startsize + ((i - num_query_threads) * (chunk_size + 1));
+	} else {
+		// Remaining threads get only the base chunk size
+	    inserts_for_thread = chunk_size;
+		
+		//  start position is calculated as:
+		// (Work of the 'remainder' threads) + (Work of the preceding 'chunk_size' threads)
+	    current_start = startsize + 
+			(remainder * (chunk_size + 1)) + 
+			(((i - num_query_threads) - remainder) * chunk_size);
+	}
         targs[i].tid = i;
         targs[i].n_inserts = inserts_for_thread;
         targs[i].startsize = current_start;
@@ -255,9 +271,20 @@ int main(int argc, const char*argv[]) {
         }
     }
     
+    if (i < remainder) {
+        inserts_for_thread = chunk_size + 1;
     
+        current_start = startsize + ((i-num_query_threads) * (chunk_size + 1));
+    } else {
+        inserts_for_thread = chunk_size;
+        current_start = startsize + 
+                        (remainder * (chunk_size + 1)) + // Total work of the first remainder threads
+                        (((i - num_query_threads) - remainder) * chunk_size);  // total work of the preceding chunk_size threads
+    }
+    
+        printf("Number of operations %lu, total operations %lu\n", inserts_for_thread, inserts_for_thread + current_start);
     targs[i].tid = i;
-    targs[i].n_inserts = remainder;
+    targs[i].n_inserts = inserts_for_thread;
     targs[i].startsize = current_start;
     targs[i].sketch = sketch;
     targs[i].algorithm = algorithm;
