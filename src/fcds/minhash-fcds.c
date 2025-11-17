@@ -212,7 +212,7 @@ uint64_t *get_global_sketch(fcds_sketch *sketch){
       for (i = 0; i < sketch->size; i++){ // copy the sketch in the list
           copy[i] = head->ptr->sketch[i];
       }
-      decrement_counter(head);  // no more work on the record pointed by head, it can be released
+      //decrement_counter(head);  // no more work on the record pointed by head, it can be released
   }
   
   

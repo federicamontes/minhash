@@ -215,7 +215,7 @@ float concurrent_query(conc_minhash *sketch, uint64_t *otherSketch) {
 	// <sketch_ptr, pending_cnt, insert_cnt> where insert_cnt is a don't-care value
 	// while pending_cnt represents the number of ongoing queries on that sketch, and it
 	// must be used for garbage collection in the future
-	union tagged_pointer *query_sketch = FetchAndInc128(&(sketch->sketches[0]), (1ULL<<PENDING_OFFSET));
+	union tagged_pointer *query_sketch = sketch->sketches[0];//FetchAndInc128(&(sketch->sketches[0]), (1ULL<<PENDING_OFFSET));
 	uint64_t i;
 	int count = 0;
 
@@ -227,7 +227,7 @@ float concurrent_query(conc_minhash *sketch, uint64_t *otherSketch) {
 	}
 
 	// decrement pending counter to allow future garbage collection
-	FetchAndInc128(&query_sketch, -((int64_t)1<<PENDING_OFFSET)); 
+	//FetchAndInc128(&query_sketch, -((int64_t)1<<PENDING_OFFSET)); 
 
     return count/(float)sketch->size;
 }
