@@ -137,7 +137,7 @@ void *thread_insert(void *arg) {
         //printf("[%lu] insertion number %ld\n", targ->tid, i);
         i = __sync_fetch_and_add(&to_insert, 1);
         if (!targ->algorithm) {
-            insert_conc_minhash_0(t_sketch, i+targ->startsize);
+            insert_conc_minhash_0(t_sketch, i+targ->startsize, targ->tid);
         } else {
             insert_conc_minhash(t_sketch, i+targ->startsize);
         }

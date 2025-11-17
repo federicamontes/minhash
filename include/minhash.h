@@ -14,6 +14,8 @@
 #endif
 #if defined(CONC_MINHASH)
 	#include <linked_list.h>
+	#include <stdalign.h> // For alignas
+        #include <stdatomic.h> // For _Atomic
 #endif
 #include <hash.h>
 #include <utils.h>
@@ -114,6 +116,8 @@ void garbage_collector_list(fcds_sketch *sketch);
 
 #ifdef CONC_MINHASH
 
+#define STRIPE_width 64 // Adjust based on max expected cores
+
 typedef struct conc_minhash {
 
     uint32_t N;		   // number of writing threads
@@ -132,6 +136,16 @@ typedef struct conc_minhash {
 	
 	/** if using single 64-bit counter this should be removed */
 	_Atomic int64_t insert_counter;  // number of insertions before merge
+	_Atomic int32_t pending_cnt;     // Number of ongoing writers
+	alignas(64) _Atomic (uint64_t *)sketches_ptr[2];//_Atomic uint64_t *sketches_ptr[2] __attribute__((aligned(64))); // 0 is the query sketch, 1 the insert sketch
+	
+        struct {
+            alignas(64) atomic_int_fast32_t count;
+        } active_writers[STRIPE_width];
+	struct {
+            alignas(64) atomic_int_fast32_t count;
+        } lazy_update[STRIPE_width];
+	
 
 	_Atomic uint64_t reclaiming; // flag to advise that reclamation is in progress
     _Atomic(struct q_list *) head;  // doubly linked list for query sketches
@@ -150,7 +164,7 @@ union tagged_pointer *FetchAndInc128(_Atomic (union tagged_pointer *) *ins_sketc
 
 
 /* SKETCH OPERATIONS */
-void insert_conc_minhash_0(conc_minhash *sketch, uint64_t val);
+void insert_conc_minhash_0(conc_minhash *sketch, uint64_t val, pthread_t tid);
 void insert_conc_minhash(conc_minhash *sketch, uint64_t val);
 void concurrent_merge_0(conc_minhash *sketch);
 void concurrent_merge(conc_minhash *sketch);
