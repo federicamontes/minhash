@@ -13,7 +13,8 @@ option(RW_LOCKS "Enable read-write locks for sketch implementation" OFF)
 option(FCDS "Enable fcds sketch implementation" OFF)
 option(CONC_MINHASH "Enable CONCURRENT MINHASH sketch implementation" OFF)
 
-add_compile_options(-Wall -Wextra -pedantic -g)
+add_compile_options(-Wall -Wextra -pedantic -g -O3)
+#add_compile_options(-save-temps)
 
 # Enable pthread support
 set(THREADS_PREFER_PTHREAD_FLAG ON)
