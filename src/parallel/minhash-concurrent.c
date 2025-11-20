@@ -80,6 +80,9 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
     (*sketch)->insert_counter = 0;
     (*sketch)->reclaiming = 0;
     
+    (*sketch)->ticket = 0;
+    (*sketch)->next_ticket = 1;
+    
     
     init_empty_sketch_conc_minhash((*sketch)->sketches[0]->sketch, (*sketch)->size);
     
@@ -302,23 +305,38 @@ void concurrent_merge_0(conc_minhash *sketch) {
  *
  * @param sketch Pointer to the concurrent MinHash structure.
  */
-void concurrent_merge(conc_minhash *sketch) {
+void concurrent_merge(conc_minhash *sketch, uint32_t sketch_id) {
 
 	trace(STDERR_FILENO, "Thread %ld - MERGE START\n", gettid()%sketch->N);
 
 	union tagged_pointer *insert_sketch, *query_sketch;
 	uint64_t i;
+	
+	uint64_t my_ticket = __atomic_add_fetch(&sketch->ticket, 1, __ATOMIC_ACQUIRE);
+	
+	while(my_ticket != __atomic_load_n(&sketch->next_ticket,__ATOMIC_SEQ_CST)) ;  // wait my turn
 
 	// Step 1: wait ongoing writers by checking pending counter
-	while((uint32_t) ((sketch->sketches[1]->counter >> PENDING_OFFSET) & MASK) != 0)
+	while((uint32_t) ((sketch->sketches[sketch_id]->counter >> PENDING_OFFSET) & MASK) != 0)
 		trace(STDOUT_FILENO,"[merge] pending_cnt (uint32_t)  = 0x%08X (%u)\n", 
-    		(uint32_t) ((sketch->sketches[1]->counter >> PENDING_OFFSET) & MASK), (uint32_t) ((sketch->sketches[1]->counter >> PENDING_OFFSET) & MASK));
+    		(uint32_t) ((sketch->sketches[sketch_id]->counter >> PENDING_OFFSET) & MASK), (uint32_t) ((sketch->sketches[1]->counter >> PENDING_OFFSET) & MASK));
 
 
 	trace(STDERR_FILENO, "Ongoing writers have finished\n");
 	
-	//Step 2: publish the current insertion sketch as the new query sketch
-	insert_sketch = __atomic_load_n(&(sketch->sketches[1]), __ATOMIC_SEQ_CST);
+	// create new insert sketch and initialize its content
+	uint64_t *new_insert_sketch = malloc(sketch->size * sizeof(uint64_t));
+	if (new_insert_sketch == NULL) {
+		fprintf(stderr, "Error in malloc() for allocation of new insert sketch in merge \n");
+		exit(1);
+	}
+	// Update the insert sketch with bthe query sketch before publishing the former
+	for( i = 0; i < sketch->size; i++){
+	    sketch->sketches[sketch_id]->sketch[i] = (sketch->sketches[sketch_id]->sketch[i] < sketch->sketches[0]->sketch[i]) ? sketch->sketches[sketch_id]->sketch[i] : sketch->sketches[0]->sketch[i];
+	    new_insert_sketch[i] = sketch->sketches[sketch_id]->sketch[i];
+	}
+	
+
 	do { // fail retry to publish new query sketch (which is pointed by insert_sketch)
 		query_sketch =  __atomic_load_n(&(sketch->sketches[0]), __ATOMIC_SEQ_CST);
 	} while (!__atomic_compare_exchange_n(&(sketch->sketches[0]), &query_sketch, insert_sketch, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
@@ -327,26 +345,19 @@ void concurrent_merge(conc_minhash *sketch) {
 
 	trace(STDERR_FILENO, "Query sketch is now fresh\n");
 
-	//Step 3: create new insert sketch and initialize its content
-	uint64_t *new_insert_sketch = malloc(sketch->size * sizeof(uint64_t));
-	if (new_insert_sketch == NULL) {
-		fprintf(stderr, "Error in malloc() for allocation of new insert sketch in merge \n");
-		exit(1);
-	}
-	
-	for (i=0; i < sketch->size; i++) 
-		new_insert_sketch[i] = insert_sketch->sketch[i];
 
 	// Step 4: Publish insertion sketch and reset all counters 
 	// insertion counter being 0 allows new insertion thread to progress
 	_Atomic (union tagged_pointer *)new_tp = alloc_aligned_tagged_pointer(new_insert_sketch, 0); 
 	int c;
 	do { // fail retry to publish new insert sketch 
-		insert_sketch = __atomic_load_n(&(sketch->sketches[1]), __ATOMIC_SEQ_CST);
+		insert_sketch = __atomic_load_n(&(sketch->sketches[sketch_id]), __ATOMIC_SEQ_CST);
 		trace(STDOUT_FILENO,"[concurrent_merge] fail retry #%d orig sketch %p old insert = %p sketch = %p \n",c, __atomic_load_n(&(sketch->sketches[1]), __ATOMIC_SEQ_CST), insert_sketch, insert_sketch->sketch);
 		c++;
-	} while (!__atomic_compare_exchange_n(&(sketch->sketches[1]), &insert_sketch, new_tp, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+	} while (!__atomic_compare_exchange_n(&(sketch->sketches[sketch_id]), &insert_sketch, new_tp, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
 
+
+         __atomic_add_fetch(&sketch->next_ticket, 1, __ATOMIC_ACQUIRE);
 
 	// TODO: garbage collection 
 }
@@ -457,8 +468,9 @@ void insert_conc_minhash_0(conc_minhash *sketch, uint64_t val) {
  *
  * @param sketch The concurrent MinHash data structure.
  * @param val The value to be inserted 
+ * @param sketch_id The sketch where the insertion is performed (and all the related aspects such as counters)
  */
-void insert_conc_minhash(conc_minhash *sketch, uint64_t val) {
+void insert_conc_minhash(conc_minhash *sketch, uint64_t val, uint32_t sketch_id) {
 
 	_Atomic(union tagged_pointer *) insert_sketch; //128-bit ptr → <sketch_ptr, pending_cnt, insert_cnt>
 	union tagged_pointer new_val, old_val;
@@ -478,7 +490,7 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val) {
          *    +1 to insert_cnt
          *    +1 << PENDING_OFFSET to pending_cnt
          */
-		insert_sketch = FetchAndInc128(&(sketch->sketches[1]), 1 + (1ULL<<PENDING_OFFSET));
+		insert_sketch = FetchAndInc128(&(sketch->sketches[sketch_id]), 1 + (1ULL<<PENDING_OFFSET));
 
 		//unmarshaling of each field
 		Icur = insert_sketch->sketch;
@@ -488,16 +500,16 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val) {
 		trace(STDOUT_FILENO,"BEFORE INSERTION \n");
 		trace(STDOUT_FILENO,"counter = 0x%016llX\n", (unsigned long long)insert_sketch->counter);
     	trace(STDOUT_FILENO,"pending_cnt (uint32_t)  = 0x%08X (%u)\n", pending_cnt, pending_cnt);
-    	trace(STDOUT_FILENO,"insert_cnt (int32_t)  = 0x%08X (%d) \t threshold %d \n", (int32_t)insert_cnt, insert_cnt, (int32_t)((sketch->b-1)*sketch->N));
+    	trace(STDOUT_FILENO,"insert_cnt (int32_t)  = 0x%08X (%d) \t threshold %d \n", (int32_t)insert_cnt, insert_cnt, (int32_t)((sketch->b-1)*sketch->N)/sketch->n_sketches);
 
     	//threshold not reached, do the insertion
-		if (insert_cnt >= 0 && insert_cnt <= (int32_t)((sketch->b-1)*sketch->N)) break; 
+		if (insert_cnt >= 0 && insert_cnt <= (int32_t)((sketch->b-1)*sketch->N)/sketch->n_sketches) break; 
 
 		// otherwise an insertions or a merge might happen, decrement pending counter
 		FetchAndInc128(&insert_sketch, -((int64_t)1<<PENDING_OFFSET));
     	
     	// if above threshold check if a merge is needed
-		if (insert_cnt > (int32_t)((sketch->b-1)*sketch->N)) { 
+		if (insert_cnt > (int32_t)((sketch->b-1)*sketch->N)/sketch->n_sketches) { 
 
 			while(1) {
 
@@ -542,7 +554,7 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val) {
 
 		// If CAS succeeded, perform the actual merge operation
 		if (res_cas) {
-			concurrent_merge(sketch);
+			concurrent_merge(sketch, sketch_id);
 			trace(STDERR_FILENO, "[%u] Merge finished Icur %p \t sketch->sketches[1]->sketch %p\n", gettid()%sketch->N, Icur, sketch->sketches[1]->sketch);
 		}
 

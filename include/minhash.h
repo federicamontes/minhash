@@ -117,23 +117,28 @@ void garbage_collector_list(fcds_sketch *sketch);
 typedef struct conc_minhash {
 
     uint32_t N;		   // number of writing threads
-	uint32_t b;		   // threshold for propagation
+    uint32_t b;		   // threshold for propagation
+    
+    uint32_t n_sketches;   // Number of shared sketches (at most N)
+    // It supposes that add fetch is used. Allows serialization of multiple concurrent merge
+    _Atomic uint64_t ticket;      // first available ticket 
+    _Atomic uint64_t next_ticket; // thread with ticket = next_ticket is the thread that can perform a merge
 	
-	uint64_t size; // size of the sketch
+    uint64_t size; // size of the sketch
 
-	// hash functions
-	uint32_t hash_type;
-	void *hash_functions;
+    // hash functions
+    uint32_t hash_type;
+    void *hash_functions;
 	
-	/** Tagged pointer for this sketch uses a single 64-bit counter, but
-	 * it is logically separated in two different 32-bit counters: one half for
-	 * the ongoing insertions, one half for the threshold-based insertions*/
-	_Atomic(union tagged_pointer *) sketches[2];
+    /** Tagged pointer for this sketch uses a single 64-bit counter, but
+     * it is logically separated in two different 32-bit counters: one half for
+     * the ongoing insertions, one half for the threshold-based insertions*/
+    _Atomic(union tagged_pointer *) *sketches;  // we have n_sketches sketches which means we have an array (pointer) to tagged_pointers
 	
-	/** if using single 64-bit counter this should be removed */
-	_Atomic int64_t insert_counter;  // number of insertions before merge
+    /** if using single 64-bit counter this should be removed */
+    _Atomic int64_t insert_counter;  // number of insertions before merge
 
-	_Atomic uint64_t reclaiming; // flag to advise that reclamation is in progress
+    _Atomic uint64_t reclaiming; // flag to advise that reclamation is in progress
     _Atomic(struct q_list *) head;  // doubly linked list for query sketches
 
 
@@ -151,9 +156,9 @@ union tagged_pointer *FetchAndInc128(_Atomic (union tagged_pointer *) *ins_sketc
 
 /* SKETCH OPERATIONS */
 void insert_conc_minhash_0(conc_minhash *sketch, uint64_t val);
-void insert_conc_minhash(conc_minhash *sketch, uint64_t val);
+void insert_conc_minhash(conc_minhash *sketch, uint64_t val, uint32_t sketch_id);
 void concurrent_merge_0(conc_minhash *sketch);
-void concurrent_merge(conc_minhash *sketch);
+void concurrent_merge(conc_minhash *sketch, uint32_t sketch_id);
 float concurrent_query(conc_minhash *sketch, uint64_t *otherSketch);
 void concurrent_basic_insert(uint64_t *sketch, uint64_t size, void *hash_functions, uint32_t hash_type, uint64_t elem);
 void sketch_values_update(conc_minhash *sketch);
