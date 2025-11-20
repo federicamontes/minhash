@@ -146,7 +146,7 @@ typedef struct conc_minhash {
 
 
 /** INIT AND CLEAR OPERATIONS */
-void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b);
+void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b, uint32_t n_sketches);
 void init_empty_sketch_conc_minhash(uint64_t *sketch, uint64_t size);
 void init_values_conc_minhash(conc_minhash *sketch, uint64_t size);
 void free_conc_minhash(conc_minhash *sketch);
