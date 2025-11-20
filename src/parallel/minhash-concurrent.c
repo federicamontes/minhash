@@ -44,7 +44,7 @@ void init_values_conc_minhash(conc_minhash *sketch, uint64_t size) {
 
 }
 
-void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b){
+void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b, uint32_t n_sketches){
     
     *sketch = malloc(sizeof(conc_minhash));
     if (*sketch == NULL) {
@@ -59,8 +59,15 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
     
     (*sketch)->hash_type = hash_type;
     (*sketch)->hash_functions = hash_functions;
+    (*sketch)->n_sketches = n_sketches;
 
     
+    
+    (*sketch)->sketches = (_Atomic(union tagged_pointer **)) malloc((1 + n_sketches) * sizeof(_Atomic( union tagged_pointer *))); // "1 +" is for handling the query sketches
+    if ((*sketch)->sketches == NULL) {
+        fprintf(stderr, "Error in malloc() when allocating sketches\n");
+        exit(1);
+    }
     
     uint64_t *s = malloc(sketch_size * sizeof(uint64_t));
     if (s == NULL) {
@@ -68,14 +75,16 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
         exit(1);
     }
 
-	(*sketch)->sketches[0] = alloc_aligned_tagged_pointer(s, 0); 
-	
-	s = malloc(sketch_size * sizeof(uint64_t));
-    if (s == NULL) {
-        fprintf(stderr, "Error in malloc() when allocating second sketch\n");
-        exit(1);
+    (*sketch)->sketches[0] = alloc_aligned_tagged_pointer(s, 0); 
+    uint64_t i;
+    for(i = 1; i < n_sketches + 1; i++){
+        s = malloc(sketch_size * sizeof(uint64_t));
+        if (s == NULL) {
+            fprintf(stderr, "Error in malloc() when allocating second sketch\n");
+            exit(1);
+        }
+	(*sketch)->sketches[i] = alloc_aligned_tagged_pointer(s, 0); 
     }
-	(*sketch)->sketches[1] = alloc_aligned_tagged_pointer(s, 0); 
    
     (*sketch)->insert_counter = 0;
     (*sketch)->reclaiming = 0;
@@ -89,9 +98,11 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
     if (init_size > 0)
         init_values_conc_minhash(*sketch, init_size);
 
-    uint64_t i;
-    for (i = 0; i < (*sketch)->size; i++)
- 		(*sketch)->sketches[1]->sketch[i] = (*sketch)->sketches[0]->sketch[i];
+    long j;
+    for (i = 0; i < (*sketch)->size; i++){
+        for (j = 1; j < n_sketches + 1; j++)
+ 		(*sketch)->sketches[j]->sketch[i] = (*sketch)->sketches[0]->sketch[i];
+    }
         
         
     (*sketch)->head = NULL;
@@ -339,7 +350,7 @@ void concurrent_merge(conc_minhash *sketch, uint32_t sketch_id) {
 
 	do { // fail retry to publish new query sketch (which is pointed by insert_sketch)
 		query_sketch =  __atomic_load_n(&(sketch->sketches[0]), __ATOMIC_SEQ_CST);
-	} while (!__atomic_compare_exchange_n(&(sketch->sketches[0]), &query_sketch, insert_sketch, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
+	} while (!__atomic_compare_exchange_n(&(sketch->sketches[0]), &query_sketch, sketch->sketches[sketch_id], 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
 	
 	// TODO: enqueue the old query sketch for garbage collection (safe reclamation later)
 
