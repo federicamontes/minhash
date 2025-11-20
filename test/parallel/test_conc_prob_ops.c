@@ -16,6 +16,7 @@ struct minhash_configuration conf = {
     .k = 5,
     .N = 0,
     .b = 0,
+    .n_sketches = 1,
 };
 
 
@@ -29,6 +30,7 @@ typedef struct {
     double elapsed;
     unsigned int core_id;
     double prob;
+    long sketch_id;
 } thread_arg_t;
 
 
@@ -48,6 +50,7 @@ static void print_params(long n_inserts, long ssize, long startsize,
     printf("Hash type                : %lu\n", conf.hash_type);
     printf("Prime modulus            : %lu\n", conf.prime_modulus);
     printf("Coefficient k-wise       : %d\n", conf.k);
+    printf("Number of ins sketches   : %d\n", conf.n_sketches);
     printf("====================\n");
 }
 
@@ -125,7 +128,7 @@ void *thread_routine(void *arg) {
             insert_conc_minhash_0(t_sketch, i+targ->startsize);
         } else {
             if (rand_r(&state) < prob*RAND_MAX) {
-                insert_conc_minhash(t_sketch, i+targ->startsize);
+                insert_conc_minhash(t_sketch, i+targ->startsize, targ->sketch_id);
             } else {
                 concurrent_query(t_sketch, t_sketch->sketches[0]->sketch);
             }
@@ -146,9 +149,9 @@ int main(int argc, const char*argv[]) {
     set_debug_enabled(false);
     bool compare_with_serial = false;
 
-    if (argc < 8) {
+    if (argc < 9) {
         fprintf(stderr,
-                "Usage: %s <number of operations> <sketch_size> <initial size> <num_threads> <threshold insertion> <algorithm> <write probability> <hash coefficient>\n",
+                "Usage: %s <number of operations> <sketch_size> <initial size> <num_threads> <threshold insertion> <algorithm> <write probability> <hash coefficient> <num sketches: default 1>\n",
                 argv[0]);
         return 1;
     }
@@ -162,6 +165,7 @@ int main(int argc, const char*argv[]) {
     long threshold = parse_arg(argv[5], "threshold", 1);
     long algorithm = parse_arg(argv[6], "algorithm", 0); //0 is baseline version, 1 is paper version
     double prob = parse_double(argv[7], "probability", 0);
+    long n_sketches = (argc == 10) ? parse_arg(argv[9], "threshold", 1) : 1;
 
     if (argc > 8) {
         long k_cofficient = parse_arg(argv[8], "hash coefficient", 1);
@@ -180,7 +184,7 @@ int main(int argc, const char*argv[]) {
 
     conf.N = num_threads; 
     conf.b = threshold;
-
+    conf.n_sketches = n_sketches;
     print_params(n_ops, conf.sketch_size, conf.init_size, conf.N, 0, conf.b);
     read_configuration(conf);
 
@@ -188,7 +192,7 @@ int main(int argc, const char*argv[]) {
     conc_minhash *sketch;
 
     void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
-    init_conc_minhash(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
+    init_conc_minhash(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b, conf.n_sketches);
 
     pthread_barrier_init(&barrier, NULL, num_threads);
 
@@ -200,6 +204,8 @@ int main(int argc, const char*argv[]) {
     uint64_t remainder = n_ops % conf.N;
     uint64_t current_start = startsize;
     uint64_t inserts_for_thread = chunk_size;
+    
+    uint32_t threads_per_sketch = conf.N / n_sketches;
 
     printf("Number of operations %lu, operations for threads %lu\n", n_ops, inserts_for_thread);
 
@@ -208,6 +214,7 @@ int main(int argc, const char*argv[]) {
 
     /** launch writer threads */
     long i;
+    int current_sketch_id = 1, n_thread_per_sketch = 0;
     for (i = 0; i < conf.N-1; i++) {
 
         
@@ -237,6 +244,9 @@ int main(int argc, const char*argv[]) {
 	targs[i].algorithm = algorithm;
 	targs[i].prob      = prob;
 	targs[i].core_id   = i % num_cores;  
+	targs[i].sketch_id = current_sketch_id;  
+	n_thread_per_sketch++;
+	if(n_thread_per_sketch == threads_per_sketch) {n_thread_per_sketch = 0; current_sketch_id++;}
 
 	current_start += inserts_for_thread;
 
@@ -265,7 +275,7 @@ int main(int argc, const char*argv[]) {
     targs[i].sketch    = sketch;
     targs[i].algorithm = algorithm;
     targs[i].prob      = prob;
-
+    targs[i].sketch_id = current_sketch_id;  
 
     targs[i].core_id   = i % num_cores;
 

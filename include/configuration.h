@@ -19,6 +19,7 @@ struct minhash_configuration {
 #if defined(FCDS) || defined(CONC_MINHASH)
     uint32_t N;                    // number of writing threads
     uint32_t b;                    // threshold for propagation
+    uint32_t n_sketches;
 #endif
 };
 
