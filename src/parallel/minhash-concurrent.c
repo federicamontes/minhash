@@ -328,11 +328,11 @@ void concurrent_merge(conc_minhash *sketch, uint32_t sketch_id) {
 	while(my_ticket != __atomic_load_n(&sketch->next_ticket,__ATOMIC_SEQ_CST)) ;  // wait my turn
 
 	// Step 1: wait ongoing writers by checking pending counter
-	while((uint32_t) ((sketch->sketches[sketch_id]->counter >> PENDING_OFFSET) & MASK) != 0)
+	while((uint32_t) ((sketch->sketches[sketch_id]->counter >> PENDING_OFFSET) & MASK) != 0) {
 		trace(STDOUT_FILENO,"[merge] pending_cnt (uint32_t)  = 0x%08X (%u)\n", 
     		(uint32_t) ((sketch->sketches[sketch_id]->counter >> PENDING_OFFSET) & MASK), (uint32_t) ((sketch->sketches[1]->counter >> PENDING_OFFSET) & MASK));
-
-
+             ;
+	}
 	trace(STDERR_FILENO, "Ongoing writers have finished\n");
 	
 	// create new insert sketch and initialize its content
@@ -534,7 +534,7 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val, uint32_t sketch_id)
 				trace(STDOUT_FILENO,"old val  %u \t %d\n", (uint32_t) ((old_val.counter >> PENDING_OFFSET) & MASK), (int32_t)old_val.counter & MASK);
 
 				// try to modify the insertion counter to -N to trigger a merge
-				res_cas = atomic_compare_exchange_tagged_ptr(sketch->sketches[1], &old_val, new_val);
+				res_cas = atomic_compare_exchange_tagged_ptr(sketch->sketches[sketch_id], &old_val, new_val);
 
 				trace(STDOUT_FILENO,"res cas %d \n", res_cas);
 
@@ -542,7 +542,7 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val, uint32_t sketch_id)
 				if (res_cas) break;
 
 				// otherwise, reload the latest version to know why the previous CAS failed
-				insert_sketch = __atomic_load_n(&(sketch->sketches[1]), __ATOMIC_SEQ_CST);
+				insert_sketch = __atomic_load_n(&(sketch->sketches[sketch_id]), __ATOMIC_SEQ_CST);
 				Inew = insert_sketch->sketch;
 				insert_cnt = (int32_t) insert_sketch->counter & MASK;
 				trace(STDERR_FILENO, "[%u] INSERT COUNTER %d\n", gettid()%sketch->N, insert_cnt, (int32_t) insert_sketch->counter & MASK);
@@ -572,7 +572,7 @@ void insert_conc_minhash(conc_minhash *sketch, uint64_t val, uint32_t sketch_id)
 		trace(STDERR_FILENO, " [%u] Icur %p \t sketch->sketches[1]->sketch %p\n", gettid()%sketch->N, Icur, sketch->sketches[1]->sketch);
 
 		// Wait until the merge completes and sketch ptr changes
-		while (Icur == sketch->sketches[1]->sketch);
+		while (Icur == sketch->sketches[sketch_id]->sketch);
 
 	} //end outer while true
 
