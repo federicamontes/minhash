@@ -46,11 +46,26 @@ void init_values_conc_minhash(conc_minhash *sketch, uint64_t size) {
 
 void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t sketch_size, int init_size, uint32_t hash_type, uint32_t N, uint32_t b, uint32_t n_sketches){
     
+    int numa_enabled = (numa_available() != -1);
+    int max_node = numa_enabled ? numa_max_node() : -1;
+    long page_size = sysconf(_SC_PAGESIZE); // Get system page size (typically 4096 bytes)
+  
+    printf("[init_conc_minhash] numa_enabled %d max_node %d\n", numa_enabled, max_node);
+
+   	if (numa_enabled) {
+        if (n_sketches != (uint32_t)(max_node + 1)) {
+            fprintf(stderr, "WARNING: n_sketches (%u) does not match the number of NUMA nodes (%d).\n", n_sketches, max_node + 1);
+        }
+    } else {
+        fprintf(stderr, "WARNING: NUMA not available. Falling back to standard malloc.\n");
+    }
+
     *sketch = malloc(sizeof(conc_minhash));
     if (*sketch == NULL) {
         fprintf(stderr, "Error in malloc() when allocating fcds_sketch\n");
         exit(1);
     }
+
 
     (*sketch)->N = N;
     (*sketch)->b = b;
@@ -59,9 +74,8 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
     
     (*sketch)->hash_type = hash_type;
     (*sketch)->hash_functions = hash_functions;
-    (*sketch)->n_sketches = n_sketches;
+    (*sketch)->n_sketches = n_sketches; // number of insert sketches
 
-    
     
     (*sketch)->sketches = (_Atomic(union tagged_pointer **)) malloc((1 + n_sketches) * sizeof(_Atomic( union tagged_pointer *))); // "1 +" is for handling the query sketches
     if ((*sketch)->sketches == NULL) {
@@ -69,21 +83,80 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
         exit(1);
     }
     
+
+    // Calculate the size of a single sketch in bytes and ensure it is page-aligned
+    size_t sketch_bytes = sketch_size * sizeof(uint64_t);
+    // Align size up to the next page boundary (used only for the insert sketches and query sketch size calculation)
+    size_t aligned_sketch_bytes = (sketch_bytes + page_size - 1) & ~(page_size - 1);
+
+
+    /** allocation of query sketch */
     uint64_t *s = malloc(sketch_size * sizeof(uint64_t));
     if (s == NULL) {
         fprintf(stderr, "Error in malloc() when allocating sketch\n");
         exit(1);
     }
 
-    (*sketch)->sketches[0] = alloc_aligned_tagged_pointer(s, 0); 
+    (*sketch)->sketches[0] = alloc_aligned_tagged_pointer(s, 0); //query sketch
+
+
+    /** allocation of insert sketches -- this should be NUMA aware */
     uint64_t i;
-    for(i = 1; i < n_sketches + 1; i++){
-        s = malloc(sketch_size * sizeof(uint64_t));
-        if (s == NULL) {
-            fprintf(stderr, "Error in malloc() when allocating second sketch\n");
-            exit(1);
+    int needs_mbind = (numa_enabled && (max_node >= 1));
+    for(i = 1; i < n_sketches + 1; i++){ //insert sketches
+        
+        if (needs_mbind) {
+    		uint64_t *s_insert;
+        	long target_node = (long)(i - 1); // Sketch 1 -> Node 0, Sketch 2 -> Node 1, etc.
+        
+	        // Use posix_memalign to ensure memory is aligned to the page size (critical for mbind)
+	        if (posix_memalign((void **)&s_insert, page_size, aligned_sketch_bytes) != 0) {
+	            fprintf(stderr, "Error in posix_memalign() when allocating insert sketch %lu\n", i);
+	            exit(1);
+	        }
+
+            // Create a bitmask for the target node
+            //struct bitmask *nodes = numa_bitmask_alloc(max_node + 1);
+            unsigned long numa_mask = 0x1UL << (target_node);
+            printf("MBIND: numa mask %lu\n", numa_mask);
+            //numa_bitmask_setbit(nodes, target_node);
+
+
+	        // --- ADD THESE CHECKS ---
+	        printf("DEBUG: s_insert (address) %% page_size = %lu\n", (unsigned long)s_insert % page_size);
+	        printf("DEBUG: aligned_sketch_bytes %% page_size = %lu\n", aligned_sketch_bytes % page_size);
+	        printf("DEBUG: target_node = %ld, max_node + 1 = %d\n", target_node, max_node + 1);
+	        // -------------------------
+	            
+            // Bind the memory to the target node
+            long status = mbind(s_insert, aligned_sketch_bytes, MPOL_BIND, &numa_mask, max_node + 1, 0);
+            HANDLE_MBIND_ERROR(status, target_node, i);
+
+            //numa_bitmask_free(nodes);
+            trace(STDOUT_FILENO, "[init_conc_minhash] Insert Sketch %lu allocated and bound to NUMA Node %d\n", i, target_node);
+        
+        	union tagged_pointer* new_tp = alloc_aligned_tagged_pointer(s_insert, 0);
+        	size_t tp_size = sizeof(union tagged_pointer);
+
+		    // Align size up to the next page boundary (used only for the insert sketches and query sketch size calculation)
+		    size_t aligned_tp_bytes = (tp_size + page_size - 1) & ~(page_size - 1);
+
+        	status = mbind(new_tp, aligned_tp_bytes, MPOL_BIND, &numa_mask, max_node + 1, 0);
+            HANDLE_MBIND_ERROR(status, target_node, i);
+
+    		(*sketch)->sketches[i] = new_tp;
+        } else {
+
+	        s = malloc(sketch_size * sizeof(uint64_t));
+	        if (s == NULL) {
+	            fprintf(stderr, "Error in malloc() when allocating second sketch\n");
+	            exit(1);
+	        }
+			(*sketch)->sketches[i] = alloc_aligned_tagged_pointer(s, 0); 
+
         }
-	(*sketch)->sketches[i] = alloc_aligned_tagged_pointer(s, 0); 
+
+
     }
    
     (*sketch)->insert_counter = 0;
@@ -99,7 +172,8 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
         init_values_conc_minhash(*sketch, init_size);
 
     long j;
-    for (i = 0; i < (*sketch)->size; i++){
+    //this puts query sketch on the numa node on which the thread is executing -- first touch
+    for (i = 0; i < (*sketch)->size; i++){ 
         for (j = 1; j < n_sketches + 1; j++)
  		(*sketch)->sketches[j]->sketch[i] = (*sketch)->sketches[0]->sketch[i];
     }
@@ -111,17 +185,57 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
     	(*sketch)->sketches[1], (*sketch)->sketches[0], (*sketch)->sketches[1]->sketch, (*sketch)->sketches[0]->sketch);
 
 }
-
+	
 
 
 void free_conc_minhash(conc_minhash *sketch){
 
-    //TODO free the version list of sketches
-    if (sketch->head != NULL) free(sketch->head);
+	// Safety check
+    if (sketch == NULL) {
+        return;
+    }
 
+    uint64_t i;
+    uint32_t n_sketches = sketch->n_sketches;
+
+
+    // We iterate from i=0 up to i=n_sketches (total 1 + n_sketches elements)
+    for (i = 0; i < n_sketches + 1; i++) {
+        
+        // Ensure the pointer exists before attempting to free
+        if (sketch->sketches[i] != NULL) {
+            
+            // The actual sketch data (uint64_t array) was allocated via malloc/posix_memalign
+            // and should be freed with standard free().
+            if (sketch->sketches[i]->sketch != NULL) {
+                free(sketch->sketches[i]->sketch);
+            }
+            
+            // NOTE: You are using alloc_aligned_tagged_pointer. If this function
+            // dynamically allocates the union tagged_pointer structure itself, 
+            // you must free the tagged_pointer wrapper here. Assuming 
+            // alloc_aligned_tagged_pointer allocates memory for the wrapper struct:
+            free(sketch->sketches[i]); 
+        }
+    }
+
+    if (sketch->sketches != NULL) {
+        free(sketch->sketches);
+    }
+
+    // Assuming sketch->head points to memory that needs to be freed.
+    // TODO: You should update this part based on how your list is structured.
+    if (sketch->head != NULL) {
+        // If it's a simple pointer, free it. If it's the head of a list, you must 
+        // iterate and free all nodes first.
+        free(sketch->head);
+    }
+
+
+    /** OLD FREE  
     free(sketch->sketches[0]->sketch);
     free(sketch->sketches[1]->sketch);
-
+	*/
     free(sketch);
 }
 

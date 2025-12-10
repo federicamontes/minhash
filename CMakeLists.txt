@@ -20,6 +20,41 @@ add_compile_options(-Wall -Wextra -pedantic -g -O3)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+
+# Find the NUMA library and headers
+find_package(Numa QUIET) # Check for a configuration file (NumaConfig.cmake)
+
+if (Numa_FOUND)
+    message(STATUS "Found Numa library via find_package.")
+    set(NUMA_INCLUDE_DIRS ${Numa_INCLUDE_DIRS})
+    set(NUMA_LIBRARIES ${Numa_LIBRARIES})
+else()
+    # Fallback to manual search for library and header (robust approach)
+    find_path(NUMA_INCLUDE_DIR numa.h
+        HINTS /usr/include /usr/local/include
+        PATHS /usr/include/numa
+    )
+
+    find_library(NUMA_LIBRARY numa
+        HINTS /usr/lib /usr/local/lib
+    )
+
+    if (NUMA_INCLUDE_DIR AND NUMA_LIBRARY)
+        message(STATUS "Found NUMA library and headers manually." ${NUMA_INCLUDE_DIR} -- ${NUMA_LIBRARY})
+        set(NUMA_INCLUDE_DIRS ${NUMA_INCLUDE_DIR})
+        set(NUMA_LIBRARIES ${NUMA_LIBRARY})
+    else()
+        message(WARNING "NUMA library/headers not found. Compilation will likely fail if NUMA code is enabled.")
+        set(NUMA_INCLUDE_DIRS "")
+        set(NUMA_LIBRARIES "")
+    endif()
+endif()
+
+# Since we are using NUMA-aware code, we define a compile definition
+if (NUMA_LIBRARIES)
+    add_compile_definitions(HAS_NUMA_SUPPORT)
+endif()
+
 if(LOCKS AND RW_LOCKS)
     message(FATAL_ERROR "LOCKS and RW_LOCKS options are mutually exclusive. Please enable only one.")
 endif()

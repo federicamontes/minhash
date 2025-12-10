@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <errno.h>
 #include <stdio.h>
 #if defined(LOCKS) || defined(RW_LOCKS) || defined(FCDS) || defined(CONC_MINHASH)
     #include <pthread.h>
@@ -19,6 +20,16 @@
 #include <utils.h>
 
 
+#include <numa.h>
+#include <numaif.h>
+
+
+// Helper macro for cleaner error handling in mbind
+#define HANDLE_MBIND_ERROR(status, node_id, sketch_idx) \
+    if (status == -1) { \
+        fprintf(stderr, "Error in mbind() for sketch %lu on node %d: %s (Did you align memory and size?)\n", (unsigned long)sketch_idx, node_id, strerror(errno)); \
+        exit(1); \
+    }
 
 #define INFTY UINT64_MAX
 #define IS_EQUAL(x, y) ((x) == (y))

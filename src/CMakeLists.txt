@@ -30,8 +30,12 @@ endif()
 add_library(minhashcore STATIC ${minhashcore_srcs})
 
 
-target_include_directories(minhashcore PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(minhashcore PRIVATE 
+    ${CMAKE_SOURCE_DIR}/include 
+    ${NUMA_INCLUDE_DIRS} 
+)
+
 
 if(LOCKS OR RW_LOCKS OR FCDS OR CONC_MINHASH)
-  target_link_libraries(minhashcore PRIVATE Threads::Threads atomic)
+  target_link_libraries(minhashcore PRIVATE Threads::Threads atomic ${NUMA_LIBRARIES})
 endif()
