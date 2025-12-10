@@ -129,7 +129,7 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
 	        // -------------------------
 	            
             // Bind the memory to the target node
-            long status = mbind(s_insert, aligned_sketch_bytes, MPOL_BIND, &numa_mask, max_node + 1, 0);
+            long status = mbind(s_insert, aligned_sketch_bytes, MPOL_BIND, &numa_mask, MAX_NODES, 0);
             HANDLE_MBIND_ERROR(status, target_node, i);
 
             //numa_bitmask_free(nodes);
@@ -141,7 +141,7 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
 		    // Align size up to the next page boundary (used only for the insert sketches and query sketch size calculation)
 		    size_t aligned_tp_bytes = (tp_size + page_size - 1) & ~(page_size - 1);
 
-        	status = mbind(new_tp, aligned_tp_bytes, MPOL_BIND, &numa_mask, max_node + 1, 0);
+        	status = mbind(new_tp, aligned_tp_bytes, MPOL_BIND, &numa_mask, MAX_NODES, 0);
             HANDLE_MBIND_ERROR(status, target_node, i);
 
     		(*sketch)->sketches[i] = new_tp;

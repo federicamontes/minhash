@@ -31,6 +31,8 @@
         exit(1); \
     }
 
+#define MAX_NODES 64
+
 #define INFTY UINT64_MAX
 #define IS_EQUAL(x, y) ((x) == (y))
 
