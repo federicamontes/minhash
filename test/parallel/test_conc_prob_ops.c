@@ -275,7 +275,7 @@ int main(int argc, const char*argv[]) {
     targs[i].sketch    = sketch;
     targs[i].algorithm = algorithm;
     targs[i].prob      = prob;
-    targs[i].sketch_id = current_sketch_id;  
+    targs[i].sketch_id = i % n_sketches + 1;  
 
     targs[i].core_id   = i % num_cores;
 
