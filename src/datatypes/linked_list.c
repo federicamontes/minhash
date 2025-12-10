@@ -81,6 +81,52 @@ union tagged_pointer* alloc_aligned_tagged_pointer(uint64_t* ptr_val, uint64_t c
 }
 
 
+union tagged_pointer* alloc_aligned_tagged_pointer_numa(
+    uint64_t* ptr_val, 
+    uint64_t counter_val, 
+    long target_node, // The NUMA node to bind to (e.g., 0, 1, 2, ...)
+    long page_size,    // Must be passed from the caller (init_conc_minhash)
+    int max_node       // Must be passed from the caller
+) {
+    union tagged_pointer* new_tp;
+    int numa_enabled = (numa_available() != -1);
+    int needs_mbind = (numa_enabled && (max_node >= 1) && (target_node >= 0));
+    
+    // --- Determine Allocation Strategy ---
+    
+    size_t alloc_size;
+    size_t alloc_alignment;
+    
+    if (needs_mbind) {
+        // Strategy 1: NUMA-AWARE (For mbind): Use page size for alignment and size.
+        // This ensures the 16-byte alignment is satisfied (4096 % 16 == 0).
+        alloc_alignment = page_size;
+        
+        // Size must be page-aligned to satisfy mbind.
+        size_t tp_size = sizeof(union tagged_pointer);
+        alloc_size = (tp_size + page_size - 1) & ~(page_size - 1); 
+        
+    } else {
+        // Strategy 2: FALLBACK (For query sketch or single-node system): Use 16-byte alignment.
+        alloc_alignment = _Alignof(union tagged_pointer); // e.g., 16 bytes
+        alloc_size = sizeof(union tagged_pointer);
+    }
+    
+    // --- Allocation ---
+
+    // posix_memalign is a standard way to get aligned memory on POSIX systems
+    if (posix_memalign((void**)&new_tp, alloc_alignment, alloc_size) != 0) {
+        perror("posix_memalign failed for tagged_pointer");
+        exit(EXIT_FAILURE);
+    }
+
+    // --- Initialization ---
+    new_tp->sketch = ptr_val;
+    new_tp->counter = counter_val;
+    return new_tp;
+
+}
+
 void cache_query_sketch(void) {
 
     

@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <hash.h>
 
+#include <numaif.h>
+#include <numa.h>
+
 #if defined(FCDS) || defined(CONC_MINHASH)
 	#include <stdatomic.h>
 	typedef __int128_t aligned_int128 __attribute__((aligned(16)));

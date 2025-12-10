@@ -29,7 +29,7 @@ int atomic_compare_exchange_tagged_ptr( volatile union tagged_pointer* obj, unio
     union tagged_pointer desired);
 
 union tagged_pointer* alloc_aligned_tagged_pointer(uint64_t* ptr_val, uint64_t counter_val);
-
+union tagged_pointer* alloc_aligned_tagged_pointer_numa(uint64_t* ptr_val, uint64_t counter_val, long target_node, long page_size, int max_node);
 
 void cache_query_sketch(void);
 

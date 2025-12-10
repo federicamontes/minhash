@@ -135,7 +135,7 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
             //numa_bitmask_free(nodes);
             trace(STDOUT_FILENO, "[init_conc_minhash] Insert Sketch %lu allocated and bound to NUMA Node %d\n", i, target_node);
         
-        	union tagged_pointer* new_tp = alloc_aligned_tagged_pointer(s_insert, 0);
+        	union tagged_pointer* new_tp = alloc_aligned_tagged_pointer_numa(s_insert, 0, target_node, page_size, max_node+1);
         	size_t tp_size = sizeof(union tagged_pointer);
 
 		    // Align size up to the next page boundary (used only for the insert sketches and query sketch size calculation)
@@ -455,7 +455,9 @@ void concurrent_merge(conc_minhash *sketch, uint32_t sketch_id) {
 		fprintf(stderr, "Error in malloc() for allocation of new insert sketch in merge \n");
 		exit(1);
 	}
-	// Update the insert sketch with bthe query sketch before publishing the former
+	// Update the insert sketch with the query sketch before publishing the former
+	// must be done because threads on different NUMA nodes do not communicate
+	// so the query sketch might be ovewritten by consecutive merges
 	for( i = 0; i < sketch->size; i++){
 	    sketch->sketches[sketch_id]->sketch[i] = (sketch->sketches[sketch_id]->sketch[i] < sketch->sketches[0]->sketch[i]) ? sketch->sketches[sketch_id]->sketch[i] : sketch->sketches[0]->sketch[i];
 	    new_insert_sketch[i] = sketch->sketches[sketch_id]->sketch[i];
@@ -482,7 +484,7 @@ void concurrent_merge(conc_minhash *sketch, uint32_t sketch_id) {
 	} while (!__atomic_compare_exchange_n(&(sketch->sketches[sketch_id]), &insert_sketch, new_tp, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED));
 
 
-         __atomic_add_fetch(&sketch->next_ticket, 1, __ATOMIC_ACQUIRE);
+    __atomic_add_fetch(&sketch->next_ticket, 1, __ATOMIC_ACQUIRE);
 
 	// TODO: garbage collection 
 }
