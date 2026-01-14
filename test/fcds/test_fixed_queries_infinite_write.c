@@ -32,6 +32,7 @@ typedef struct {
 
 
 long to_insert;
+unsigned long count_ins;
 pthread_barrier_t barrier;
 
 static void print_params(long n_inserts, long ssize, long startsize,
@@ -93,7 +94,7 @@ void local_insert(uint64_t *sketch, void *hash_functions, uint32_t hash_type, ui
     for (;;) {
         i = __sync_fetch_and_add(&to_insert, 1);
         insert_fcds(sketch, hash_functions, hash_type, size, &insertion_counter, prop, b, i+startsize);
-
+        __sync_fetch_and_add(&count_ins, 1);
     }
 }
 
@@ -278,6 +279,8 @@ int main(int argc, const char*argv[]) {
 
     printf("Total program elapsed time: %.3f ms\n",
            elapsed_ms(global_start, global_end));
+
+    printf("Number of insertions %lu\n", count_ins);
     
     pthread_barrier_destroy(&barrier);
 

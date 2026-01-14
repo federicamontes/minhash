@@ -30,6 +30,7 @@ typedef struct {
 } thread_arg_t;
 
 long to_insert;
+unsigned long count_ins;
 pthread_barrier_t barrier;
 
 static void print_params(long n_inserts, long ssize, long startsize,
@@ -141,6 +142,7 @@ void *thread_insert(void *arg) {
         } else {
             insert_conc_minhash(t_sketch, i+targ->startsize);
         }
+        __sync_fetch_and_add(&count_ins, 1);
     }
     
     //fprintf(stderr, "[thread_insert] %u has finished \n", gettid()%t_sketch->N);
@@ -287,6 +289,8 @@ int main(int argc, const char*argv[]) {
 
     printf("Total program elapsed time: %.3f ms\n",
            elapsed_ms(global_start, global_end));
+
+    printf("Number of insertions %lu\n", count_ins);
     
     pthread_barrier_destroy(&barrier);
 
