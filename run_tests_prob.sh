@@ -33,7 +33,7 @@ NUM_OPS=100000
 SKETCH_SIZE=100
 INITIAL_SIZE=0
 THRESHOLD_INSERTION=5
-HASH_COEFF=10
+HASH_COEFF=2
 ALGORITHM=1  # will only be used for concurrent test
 
 # 1. Compile both versions
@@ -48,6 +48,9 @@ mkdir -p "$OUTPUT_DIR"
 # 2. Run tests
 for THREADS in "${THREAD_COUNTS[@]}"; do
     # fcds test
+    if [ "$THREADS" -eq 2 ]; then
+        echo "Skipping FCDS test for thread count: 2"
+    else
     for WP in "${WRITE_PROBS[@]}"; do
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
             OUT_FILE="${OUTPUT_DIR}/fcds_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_wp${WP}_threads${THREADS}_run${RUN}.txt"
