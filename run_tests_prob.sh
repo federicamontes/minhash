@@ -48,12 +48,13 @@ mkdir -p "$OUTPUT_DIR"
 # 2. Run tests
 for THREADS in "${THREAD_COUNTS[@]}"; do
     # fcds test
-    if [ "$THREADS" -eq 2 ]; then
-        echo "Skipping FCDS test for thread count: 2"
-        continue
-    fi
+
     for WP in "${WRITE_PROBS[@]}"; do
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
+            if [ "$THREADS" -eq 2 ]; then
+                echo "Skipping FCDS test for thread count: 2"
+                continue
+            fi
             OUT_FILE="${OUTPUT_DIR}/fcds_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_wp${WP}_threads${THREADS}_run${RUN}.txt"
             "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "$OUT_FILE" 2>&1
         done
