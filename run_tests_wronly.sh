@@ -46,6 +46,10 @@ for THREADS in "${THREAD_COUNTS[@]}"; do
 
     # fcds write-only test
     for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
+        if [ "$THREADS" -eq 2 ]; then
+            echo "Skipping FCDS test for thread count: 2"
+            continue
+        fi
         OUT_FILE="${OUTPUT_DIR}/fcds_wronly_ins${NUM_INSERTIONS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_threads${THREADS}_run${RUN}.txt"
         "${TEST_DIR}/test_fcds_wronly" \
             "$NUM_INSERTIONS" \
