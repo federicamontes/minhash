@@ -11,16 +11,19 @@ NUM_RUNS=10
 # Total available CPU cores
 MAX_THREADS=$(nproc)
 
-# Generate symmetric (workers, queries) configurations
+# --- NEW THREAD LIST LOGIC ---
+QUARTER=$((MAX_THREADS / 4))
+# Your logic points: 1, Q/2, Q, 2Q, 3Q, MAX
+RAW_POINTS="3 $((QUARTER/2)) $QUARTER $((QUARTER*2)) $((QUARTER*3)) $MAX_THREADS"
+
 CONFIGS=()
 declare -A SEEN
 
-t=1
-while [ $t -lt $MAX_THREADS ]; do
-    # (MAX - t, t)
-    w1=$((MAX_THREADS - t))
-    q1=$t
-    if [ $w1 -gt 0 ]; then
+for q in $RAW_POINTS; do
+    # 1. Configuration: Workers = MAX - q, Queries = q
+    w1=$((MAX_THREADS - q))
+    q1=$q
+    if [ "$w1" -gt 0 ] && [ "$q1" -gt 0 ]; then
         key="${w1},${q1}"
         if [[ -z "${SEEN[$key]:-}" ]]; then
             CONFIGS+=("$w1 $q1")
@@ -28,22 +31,20 @@ while [ $t -lt $MAX_THREADS ]; do
         fi
     fi
 
-    # (t, MAX - t)
-    w2=$t
-    q2=$((MAX_THREADS - t))
-    if [ $q2 -gt 0 ]; then
+    # 2. Configuration: Workers = q, Queries = MAX - q
+    w2=$q
+    q2=$((MAX_THREADS - q))
+    if [ "$w2" -gt 0 ] && [ "$q2" -gt 0 ]; then
         key="${w2},${q2}"
         if [[ -z "${SEEN[$key]:-}" ]]; then
             CONFIGS+=("$w2 $q2")
             SEEN[$key]=1
         fi
     fi
-
-    t=$((t * 2))
 done
 
 echo "Total threads: $MAX_THREADS"
-echo "Worker / Query configurations:"
+echo "Worker / Query configurations (using Quarter-Step logic):"
 for cfg in "${CONFIGS[@]}"; do
     echo "  workers=${cfg%% *}, queries=${cfg##* }"
 done
