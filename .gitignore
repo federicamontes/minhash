@@ -2,3 +2,5 @@
 
 
 build/*
+plots/*
+old-tests-plots/*
