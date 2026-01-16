@@ -35,11 +35,9 @@ get_cpu_list() {
         done
     else
         # Fill Node 0 completely (20 cores), then Node 1 (odd cores: 1, 3, 5...)
-        # Node 0 even cores
         for ((i=0; i<20; i++)); do
             list+="$((i*2)),"
         done
-        # Node 1 odd cores
         for ((i=0; i<$((n-20)); i++)); do
             list+="$((i*2 + 1)),"
         done
@@ -47,23 +45,20 @@ get_cpu_list() {
     echo "${list%,}" # remove trailing comma
 }
 
-echo "Running benchmarks with $FIXED_THREADS threads pinned to NUMA Node 0"
+# Generate the list once since FIXED_THREADS doesn't change
+CPU_LIST=$(get_cpu_list "$FIXED_THREADS")
+echo "Running benchmarks with $FIXED_THREADS threads pinned to CPUs: $CPU_LIST"
 
 for SIZE in "${SKETCH_SIZES[@]}"; do
-    CPU_LIST=$(get_cpu_list "$THREADS")
-    echo "Running with $THREADS threads on CPUs: $CPU_LIST"
-
     for WP in "${WRITE_PROBS[@]}"; do
-        echo "Size: $SIZE | WP: $WP | Threads: $FIXED_THREADS | NUMA: Node 0"
+        echo "Size: $SIZE | WP: $WP | Threads: $FIXED_THREADS | CPUs: $CPU_LIST"
         
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
-            # Base Filenames (added _threads20 for the python parser to keep track)
+            # Base Filenames
             BASE_FCDS="fcds_sz${SIZE}_wp${WP}_threads${FIXED_THREADS}_run${RUN}"
             BASE_CONC="conc_sz${SIZE}_wp${WP}_threads${FIXED_THREADS}_run${RUN}"
 
             # --- FCDS ---
-            # --cpunodebind=0 pins to cores on Node 0
-            # --localalloc ensures memory is allocated on the same node
             numactl --physcpubind="$CPU_LIST" --localalloc \
             "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
             
@@ -72,7 +67,8 @@ for SIZE in "${SKETCH_SIZES[@]}"; do
             "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > /dev/null 2>&1
 
             # --- CONCURRENT ---
-            numactl ---physcpubind="$CPU_LIST" --localalloc \
+            # Corrected the triple dash typo here
+            numactl --physcpubind="$CPU_LIST" --localalloc \
             "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
             
             perf stat -x, -e "$PERF_EVENTS" -o "${OUTPUT_DIR}/${BASE_CONC}.perf" \
