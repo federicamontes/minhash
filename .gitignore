@@ -4,3 +4,4 @@
 build/*
 plots/*
 old-tests-plots/*
+results-*/*
