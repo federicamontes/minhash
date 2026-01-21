@@ -2,3 +2,5 @@
 
 
 build/*
+results*/*
+old-tests-plots/*
