@@ -1,13 +1,28 @@
 #!/usr/bin/env python3
 import os
 import re
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
 # Configuration
-RESULTS_DIR = "build/test_prob/"
-NUM_OPS = 100000 
+NUM_OPS = 1000000 
+
+
+# --- 1. Command Line Directory Handling ---
+# Usage: python3 plot_script.py [BASE_DIR]
+# Example: python3 plot_script.py ./build
+# Example: python3 plot_script.py ./my_experimental_data
+
+if len(sys.argv) > 1:
+    BASE_DIR = sys.argv[1]
+else:
+    BASE_DIR = "results"  # Default fallback
+
+# Define which sub-test directory this specific script targets
+SUB_DIR = "test_prob" 
+RESULTS_DIR = os.path.join(BASE_DIR, SUB_DIR)
 
 def parse_files(directory):
     data = []
