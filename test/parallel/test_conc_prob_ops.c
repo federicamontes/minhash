@@ -243,7 +243,7 @@ int main(int argc, const char*argv[]) {
     	targs[i].algorithm = algorithm;
     	targs[i].prob      = prob;
     	targs[i].core_id   = i % num_cores;  
-    	targs[i].sketch_id = i % n_sketches + 1;  
+    	targs[i].sketch_id = (i % n_sketches) + 1;  
     	n_thread_per_sketch++;
     	if(n_thread_per_sketch == threads_per_sketch) {n_thread_per_sketch = 0; current_sketch_id++;}
 
@@ -274,7 +274,7 @@ int main(int argc, const char*argv[]) {
     targs[i].sketch    = sketch;
     targs[i].algorithm = algorithm;
     targs[i].prob      = prob;
-    targs[i].sketch_id = i % n_sketches + 1;  
+    targs[i].sketch_id = (i % n_sketches) + 1;  
 
     targs[i].core_id   = i % num_cores;
 
