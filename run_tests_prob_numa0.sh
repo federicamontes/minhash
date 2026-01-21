@@ -66,22 +66,23 @@ for THREADS in "${THREAD_COUNTS[@]}"; do
             if [ "$THREADS" -gt 2 ]; then
                 BASE_FCDS="fcds_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_wp${WP}_threads${THREADS}_run${RUN}"
                 
-                numactl --physcpubind="$CPU_LIST" --localalloc \
+                # Using taskset -c to enforce the hard mask on the even cores
+                taskset -c "$CPU_LIST" numactl --localalloc \
                 "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
                 
                 perf stat -x, -e "$PERF_EVENTS" -o "${OUTPUT_DIR}/${BASE_FCDS}.perf" \
-                numactl --physcpubind="$CPU_LIST" --localalloc \
+                taskset -c "$CPU_LIST" numactl --localalloc \
                 "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > /dev/null 2>&1
             fi
 
             # --- CONCURRENT TEST ---
             BASE_CONC="conc_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_alg${ALGORITHM}_wp${WP}_threads${THREADS}_run${RUN}"
             
-            numactl --physcpubind="$CPU_LIST" --localalloc \
+            taskset -c "$CPU_LIST" numactl --localalloc \
             "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
             
             perf stat -x, -e "$PERF_EVENTS" -o "${OUTPUT_DIR}/${BASE_CONC}.perf" \
-            numactl --physcpubind="$CPU_LIST" --localalloc \
+            taskset -c "$CPU_LIST" numactl --localalloc \
             "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" > /dev/null 2>&1
             
         done

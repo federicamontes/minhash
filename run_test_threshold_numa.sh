@@ -1,18 +1,18 @@
 #!/bin/bash
 
-OUTPUT_DIR="test_sketch_size_numa"
+OUTPUT_DIR="test_threshold_numa"
 TEST_DIR="./test"
 NUM_RUNS=10
 # Fixed at 20 threads as requested
 FIXED_THREADS=20
 
-# Specific sketch sizes up to 2048
-SKETCH_SIZES=(64 128 256 512 1024 1536 2048)
+# Threshold Insertion values to iterate over
+THRESHOLDS=(5 100 500)
 
 WRITE_PROBS=(0.1 0.5 0.9)
-NUM_OPS=100000
+NUM_OPS=1000000
+SKETCH_SIZE=100
 INITIAL_SIZE=0
-THRESHOLD_INSERTION=5
 HASH_COEFF=2
 ALGORITHM=1
 
@@ -47,33 +47,33 @@ get_cpu_list() {
 
 # Generate the list once since FIXED_THREADS doesn't change
 CPU_LIST=$(get_cpu_list "$FIXED_THREADS")
-echo "Running benchmarks with $FIXED_THREADS threads pinned to CPUs: $CPU_LIST"
+echo "Enforcing NUMA 0 pinning on Even Cores: $CPU_LIST"
 
-for SIZE in "${SKETCH_SIZES[@]}"; do
+for THRESH in "${THRESHOLDS[@]}"; do
     for WP in "${WRITE_PROBS[@]}"; do
-        echo "Size: $SIZE | WP: $WP | Threads: $FIXED_THREADS | CPUs: $CPU_LIST"
+        echo "Threshold: $THRESH | WP: $WP | Threads: $FIXED_THREADS | CPUs: $CPU_LIST"
         
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
             # Base Filenames
-            BASE_FCDS="fcds_sz${SIZE}_wp${WP}_threads${FIXED_THREADS}_run${RUN}"
-            BASE_CONC="conc_sz${SIZE}_wp${WP}_threads${FIXED_THREADS}_run${RUN}"
+            BASE_FCDS="fcds_thresh${THRESH}_ops${NUM_OPS}_wp${WP}_threads${FIXED_THREADS}_run${RUN}"
+            BASE_CONC="conc_thresh${THRESH}_ops${NUM_OPS}_wp${WP}_threads${FIXED_THREADS}_run${RUN}"
 
             # --- FCDS ---
-            # Using taskset -c to strictly confine threads to the even core list
+            # taskset -c ensures internal thread pinning doesn't use odd cores
             taskset -c "$CPU_LIST" numactl --localalloc \
-            "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
+            "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESH" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
             
             perf stat -x, -e "$PERF_EVENTS" -o "${OUTPUT_DIR}/${BASE_FCDS}.perf" \
             taskset -c "$CPU_LIST" numactl --localalloc \
-            "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > /dev/null 2>&1
+            "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESH" "$WP" "$HASH_COEFF" > /dev/null 2>&1
 
             # --- CONCURRENT ---
             taskset -c "$CPU_LIST" numactl --localalloc \
-            "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
+            "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESH" "$ALGORITHM" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
             
             perf stat -x, -e "$PERF_EVENTS" -o "${OUTPUT_DIR}/${BASE_CONC}.perf" \
             taskset -c "$CPU_LIST" numactl --localalloc \
-            "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" > /dev/null 2>&1
+            "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$FIXED_THREADS" "$THRESH" "$ALGORITHM" "$WP" "$HASH_COEFF" > /dev/null 2>&1
         done
     done
 done
