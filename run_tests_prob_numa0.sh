@@ -1,10 +1,23 @@
 #!/bin/bash
 
-OUTPUT_DIR="test_prob"
+OUTPUT_DIR="test_prob_numa_pinning"
 TEST_DIR="./test"
 NUM_RUNS=10
-# Explicitly set the thread counts you requested
-THREAD_COUNTS=(2 4 8 16 20 32 40)
+MAX_THREADS=$(nproc)
+
+# --- Generate thread counts based on your logic ---
+QUARTER=$((MAX_THREADS / 4))
+RAW_LIST="3 $((QUARTER/2)) $QUARTER $((QUARTER*2)) $((QUARTER*3)) $MAX_THREADS"
+
+THREAD_COUNTS=()
+for t in $RAW_LIST; do
+    if [ "$t" -gt 1 ]; then
+        THREAD_COUNTS+=("$t")
+    fi
+done
+
+# Deduplicate and sort the list
+THREAD_COUNTS=($(echo "${THREAD_COUNTS[@]}" | tr ' ' '\n' | sort -nu | tr '\n' ' '))
 
 WRITE_PROBS=(0.1 0.5 0.9)
 NUM_OPS=1000000
@@ -21,22 +34,20 @@ PERF_EVENTS="cache-references,cache-misses,L1-dcache-load-misses,LLC-load-misses
 cd build
 mkdir -p "$OUTPUT_DIR"
 
-# Function to generate the CPU list based on your NUMA topology
+# Function to generate the CPU list
 get_cpu_list() {
     local n=$1
     local list=""
     if [ "$n" -le 20 ]; then
-        # Stay on Node 0 (even cores: 0, 2, 4...)
+        # Stay on NUMA 0 (even cores: 0, 2, 4...)
         for ((i=0; i<n; i++)); do
             list+="$((i*2)),"
         done
     else
-        # Fill Node 0 completely (20 cores), then Node 1 (odd cores: 1, 3, 5...)
-        # Node 0 even cores
+        # Fill NUMA 0 (20 even cores), then use NUMA 1 (odd cores: 1, 3, 5...)
         for ((i=0; i<20; i++)); do
             list+="$((i*2)),"
         done
-        # Node 1 odd cores
         for ((i=0; i<$((n-20)); i++)); do
             list+="$((i*2 + 1)),"
         done
@@ -55,7 +66,6 @@ for THREADS in "${THREAD_COUNTS[@]}"; do
             if [ "$THREADS" -gt 2 ]; then
                 BASE_FCDS="fcds_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_wp${WP}_threads${THREADS}_run${RUN}"
                 
-                # Use numactl to bind to the specific CPU list and keep memory local to those cores
                 numactl --physcpubind="$CPU_LIST" --localalloc \
                 "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
                 
@@ -77,3 +87,5 @@ for THREADS in "${THREAD_COUNTS[@]}"; do
         done
     done
 done
+
+echo "Tests complete. Data in build/$OUTPUT_DIR"
