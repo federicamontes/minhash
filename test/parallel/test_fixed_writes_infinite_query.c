@@ -27,6 +27,7 @@ typedef struct {
     long algorithm;
     double elapsed;
     unsigned int core_id;
+    long sketch_id;
 } thread_arg_t;
 
 unsigned long count_queries;
@@ -140,7 +141,7 @@ void *thread_insert(void *arg) {
         if (!targ->algorithm) {
             insert_conc_minhash_0(t_sketch, i+targ->startsize);
         } else {
-            insert_conc_minhash(t_sketch, i+targ->startsize);
+            insert_conc_minhash(t_sketch, i+targ->startsize, targ->sketch_id);
         }
     }
     
@@ -158,9 +159,9 @@ int main(int argc, const char*argv[]) {
     set_debug_enabled(false);
     bool compare_with_serial = false;
 
-    if (argc < 8) {
+    if (argc < 9) {
         fprintf(stderr,
-                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> <algorithm> <hash coefficient>\n",
+                "Usage: %s <number of insertions> <sketch_size> <initial size> <num_threads> <threshold insertion> <num_query_threads> <algorithm> <hash coefficient> <num sketches: default 1>\n",
                 argv[0]);
         return 1;
     }
@@ -181,6 +182,9 @@ int main(int argc, const char*argv[]) {
         conf.k = k_cofficient;
     }
 
+    long n_sketches = (argc == 10) ? parse_arg(argv[9], "threshold", 1) : 1;
+
+
 
     // when finished debugging remove comment
     //srand(time(NULL)); 
@@ -194,6 +198,7 @@ int main(int argc, const char*argv[]) {
 
     conf.N = num_threads; 
     conf.b = threshold;
+    conf.n_sketches = n_sketches;
 
     print_params(n_inserts, conf.sketch_size, conf.init_size, conf.N, num_query_threads, conf.b);
     read_configuration(conf);
@@ -202,7 +207,7 @@ int main(int argc, const char*argv[]) {
     conc_minhash *sketch;
 
     void *hash_functions = hash_functions_init(conf.hash_type, conf.sketch_size, conf.prime_modulus, conf.k);
-    init_conc_minhash(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b);
+    init_conc_minhash(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type, conf.N, conf.b, conf.n_sketches);
 
     pthread_barrier_init(&barrier, NULL, num_threads + num_query_threads);
 
@@ -214,6 +219,9 @@ int main(int argc, const char*argv[]) {
     uint64_t remainder = n_inserts % conf.N;
     uint64_t current_start = startsize;
     uint64_t inserts_for_thread = chunk_size;
+
+    uint32_t threads_per_sketch = conf.N / n_sketches;
+
 
     printf("Number of inserts %lu, inserts for threads %lu\n", n_inserts, inserts_for_thread);
 
@@ -234,31 +242,38 @@ int main(int argc, const char*argv[]) {
         }
     }
 
+    int current_sketch_id = 1, n_thread_per_sketch = 0;
+
+
     /** launch writer threads */
     for (; i < num_query_threads+conf.N-1; i++) {
 
-	if (i < num_query_threads+ remainder) { // takes into account that the first num_query_threads threads are for query
-		// First 'remainder' threads get the base chunk plus one
-	    inserts_for_thread = chunk_size + 1;
-		
-		//  start position is offset by the work done by previous threads.
-		// The previous 'i' threads each got (chunk_size + 1).
-	    current_start = startsize + ((i - num_query_threads) * (chunk_size + 1));
-	} else {
-		// Remaining threads get only the base chunk size
-	    inserts_for_thread = chunk_size;
-		
-		//  start position is calculated as:
-		// (Work of the 'remainder' threads) + (Work of the preceding 'chunk_size' threads)
-	    current_start = startsize + 
-			(remainder * (chunk_size + 1)) + 
-			(((i - num_query_threads) - remainder) * chunk_size);
-	}
+    	if (i < num_query_threads+ remainder) { // takes into account that the first num_query_threads threads are for query
+    		// First 'remainder' threads get the base chunk plus one
+    	    inserts_for_thread = chunk_size + 1;
+    		
+    		//  start position is offset by the work done by previous threads.
+    		// The previous 'i' threads each got (chunk_size + 1).
+    	    current_start = startsize + ((i - num_query_threads) * (chunk_size + 1));
+    	} else {
+    		// Remaining threads get only the base chunk size
+    	    inserts_for_thread = chunk_size;
+    		
+    		//  start position is calculated as:
+    		// (Work of the 'remainder' threads) + (Work of the preceding 'chunk_size' threads)
+    	    current_start = startsize + 
+    			(remainder * (chunk_size + 1)) + 
+    			(((i - num_query_threads) - remainder) * chunk_size);
+    	}
         targs[i].tid = i;
         targs[i].n_inserts = inserts_for_thread;
         targs[i].startsize = current_start;
         targs[i].sketch = sketch;
         targs[i].algorithm = algorithm;
+        targs[i].sketch_id = i % n_sketches + 1;  
+        n_thread_per_sketch++;
+        if(n_thread_per_sketch == threads_per_sketch) {n_thread_per_sketch = 0; current_sketch_id++;}
+
 
         targs[i].core_id = i % num_cores;  
 
@@ -288,6 +303,10 @@ int main(int argc, const char*argv[]) {
     targs[i].startsize = current_start;
     targs[i].sketch = sketch;
     targs[i].algorithm = algorithm;
+    targs[i].sketch_id = i % n_sketches + 1;  
+    n_thread_per_sketch++;
+    if(n_thread_per_sketch == threads_per_sketch) {n_thread_per_sketch = 0; current_sketch_id++;}
+
 
     targs[i].core_id = i % num_cores;
 
