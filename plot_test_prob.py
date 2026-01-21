@@ -18,7 +18,7 @@ NUM_OPS = 1000000
 if len(sys.argv) > 1:
     BASE_DIR = sys.argv[1]
 else:
-    BASE_DIR = "results"  # Default fallback
+    BASE_DIR = "results-100k-ops"  # Default fallback
 
 # Define which sub-test directory this specific script targets
 SUB_DIR = "test_prob" 
