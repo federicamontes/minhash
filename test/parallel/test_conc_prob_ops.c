@@ -115,7 +115,7 @@ void *thread_routine(void *arg) {
     conc_minhash *t_sketch = targ->sketch;
     double prob = targ->prob;
 
-    pin_thread_to_core(targ->core_id);
+    pin_thread_to_core(targ->tid, targ->core_id);
 
     pthread_barrier_wait(&barrier);
 

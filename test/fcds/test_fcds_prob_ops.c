@@ -87,7 +87,7 @@ void *thread_routine(void *arg) {
     _Atomic uint32_t *propi = &(t_sketch->prop[targ->tid]);
     uint32_t insertion_counter = 0;
 
-    pin_thread_to_core(targ->core_id);
+    pin_thread_to_core(targ->tid, targ->core_id);
 
     pthread_barrier_wait(&barrier);
 

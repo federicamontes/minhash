@@ -133,7 +133,7 @@ void init_conc_minhash(conc_minhash **sketch, void *hash_functions, uint64_t ske
             HANDLE_MBIND_ERROR(status, target_node, i);
 
             //numa_bitmask_free(nodes);
-            trace(STDOUT_FILENO, "[init_conc_minhash] Insert Sketch %lu allocated and bound to NUMA Node %d\n", i, target_node);
+            printf("[init_conc_minhash] Insert Sketch %lu allocated and bound to NUMA Node %d\n", i, target_node);
         
         	union tagged_pointer* new_tp = alloc_aligned_tagged_pointer_numa(s_insert, 0, target_node, page_size, max_node+1);
         	size_t tp_size = sizeof(union tagged_pointer);

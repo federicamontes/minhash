@@ -130,7 +130,7 @@ void *thread_insert(void *arg) {
     struct timeval t1, t2;
     conc_minhash *t_sketch = targ->sketch;
     
-    pin_thread_to_core(targ->core_id);
+    pin_thread_to_core(targ->tid, targ->core_id);
 
     pthread_barrier_wait(&barrier);
 

@@ -116,7 +116,7 @@ void *thread_insert(void *arg) {
     uint64_t *local_sketch = t_sketch->local_sketches[targ->tid];
     _Atomic uint32_t *propi = &(t_sketch->prop[targ->tid]);
 
-    pin_thread_to_core(targ->core_id);
+    pin_thread_to_core(targ->tid, targ->core_id);
 
     pthread_barrier_wait(&barrier);
 

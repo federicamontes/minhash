@@ -12,7 +12,7 @@
 
 /** --- Core pinning --- */
 
-int pin_thread_to_core(unsigned int core_id) {
+int pin_thread_to_core(unsigned long tid, unsigned int core_id) {
 
     cpu_set_t cpuset;
     pthread_t thread;
@@ -47,7 +47,7 @@ int pin_thread_to_core(unsigned int core_id) {
     }
 
     if (CPU_ISSET(core_id, &cpuset))
-        printf("Thread successfully pinned to core %d\n", core_id);
+        printf("Thread %lu successfully pinned to core %d\n",tid, core_id);
     else
         fprintf(stderr, "Failed to pin thread to core %d\n", core_id);
 
