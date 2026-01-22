@@ -165,6 +165,7 @@ int main(int argc, const char*argv[]) {
     }
 
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    unsigned long node;
 
     long n_queries = parse_arg(argv[1], "n_queries", 1);
     long ssize = parse_arg(argv[2], "sketch_size", 1);
@@ -254,7 +255,9 @@ int main(int argc, const char*argv[]) {
         targs[i].startsize = current_start;
         targs[i].core_id = i % num_cores;
         targs[i].algorithm = algorithm;
-        targs[i].sketch_id = (i % n_sketches) + 1;  
+        //targs[i].sketch_id = (i % n_sketches) + 1;  
+        node = numa_node_of_cpu(targs[i].core_id); 
+        targs[i].sketch_id = node + 1;  
         n_thread_per_sketch++;
         if(n_thread_per_sketch == threads_per_sketch) {n_thread_per_sketch = 0; current_sketch_id++;}
 
