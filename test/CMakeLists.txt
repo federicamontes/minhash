@@ -38,20 +38,20 @@ else() #CONC_MINHASH
 
     #add_executable(test_conc_minhash parallel/test_conc_minhash.c)
     #add_executable(test_conc_wronly parallel/test_only_writes.c)
-    #add_executable(test_conc_fix_wr parallel/test_fixed_writes_infinite_query.c)
-    #add_executable(test_conc_fix_qr parallel/test_fixed_queries_infinite_write.c)
+    add_executable(test_conc_fix_wr parallel/test_fixed_writes_infinite_query.c)
+    add_executable(test_conc_fix_qr parallel/test_fixed_queries_infinite_write.c)
     add_executable(test_conc_prob parallel/test_conc_prob_ops.c)
 
     #target_link_libraries(test_conc_minhash PRIVATE minhashcore)
     #target_link_libraries(test_conc_wronly PRIVATE minhashcore)
-    #target_link_libraries(test_conc_fix_wr PRIVATE minhashcore)
-    #target_link_libraries(test_conc_fix_qr PRIVATE minhashcore)
+    target_link_libraries(test_conc_fix_wr PRIVATE minhashcore)
+    target_link_libraries(test_conc_fix_qr PRIVATE minhashcore)
     target_link_libraries(test_conc_prob PRIVATE minhashcore)
     
     #target_include_directories(test_conc_minhash PRIVATE ${CMAKE_SOURCE_DIR}/include)
     #target_include_directories(test_conc_wronly PRIVATE ${CMAKE_SOURCE_DIR}/include)
-    #target_include_directories(test_conc_fix_wr PRIVATE ${CMAKE_SOURCE_DIR}/include)
-    #target_include_directories(test_conc_fix_qr PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(test_conc_fix_wr PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(test_conc_fix_qr PRIVATE ${CMAKE_SOURCE_DIR}/include)
     target_include_directories(test_conc_prob PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 

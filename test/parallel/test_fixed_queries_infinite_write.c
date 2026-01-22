@@ -109,7 +109,7 @@ void *thread_query(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
     conc_minhash *t_sketch = targ->sketch;
 
-    pin_thread_to_core(targ->core_id);
+    pin_thread_to_core(targ->tid, targ->core_id);
 
 
     // Synchronize all threads before starting insertion
@@ -233,14 +233,14 @@ int main(int argc, const char*argv[]) {
 
         if (i < remainder) {
             // First 'remainder' threads get the base chunk plus one
-            inserts_for_thread = chunk_size + 1;
+            queries_for_thread = chunk_size + 1;
             
             //  start position is offset by the work done by previous threads.
             // The previous 'i' threads each got (chunk_size + 1).
             current_start = startsize + (i * (chunk_size + 1));
         } else {
             // Remaining threads get only the base chunk size
-            inserts_for_thread = chunk_size;
+            queries_for_thread = chunk_size;
             
             //  start position is calculated as:
             // (Work of the 'remainder' threads) + (Work of the preceding 'chunk_size' threads)

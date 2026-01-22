@@ -109,7 +109,7 @@ void *thread_query(void *arg) {
     thread_arg_t *targ = (thread_arg_t *)arg;
     conc_minhash *t_sketch = targ->sketch;
 
-    pin_thread_to_core(targ->core_id);
+    pin_thread_to_core(targ->tid, targ->core_id);
 
 
     // Synchronize all threads before starting insertion
@@ -132,8 +132,6 @@ void *thread_insert(void *arg) {
     conc_minhash *t_sketch = targ->sketch;
     
     pin_thread_to_core(targ->tid, targ->core_id);
-
-    printf("Thread %lu using sketch %lu\n",targ->tid, targ->sketch_id);
 
     pthread_barrier_wait(&barrier);
 
