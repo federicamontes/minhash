@@ -15,6 +15,7 @@ struct minhash_configuration conf = {
     .k = 5,
     .N = 0,
     .b = 0,
+    .n_sketches = 1,
 };
 
 
