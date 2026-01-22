@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Updated to 1,000,000 as per your previous request for this specific test
+# Updated to 1,000,000 as per your previous request
 NUM_OPS = 1000000
 
 # --- 1. Command Line Directory Handling ---
@@ -31,9 +31,14 @@ def parse_files(directory):
         if not filename.endswith(".txt"):
             continue
             
-        algo = "FCDS" if filename.startswith("fcds") else "Concurrent"
+        # --- CATEGORIZATION LOGIC ---
+        if filename.startswith("fcds"):
+            algo = "FCDS"
+        elif "numa" in filename:
+            algo = "Concurrent-NUMA"
+        else:
+            algo = "Concurrent"
         
-        # Updated Regex to find 'thresh' for the X-axis
         thresh_match = re.search(r"thresh(\d+)", filename)
         wp_match = re.search(r"wp([\d.]+)", filename)
         threads_match = re.search(r"threads(\d+)", filename)
@@ -54,7 +59,7 @@ def parse_files(directory):
             if time_match:
                 elapsed_time = float(time_match.group(1))
 
-        # 2. Extract and SUM Perf Events (Standard names)
+        # 2. Extract and SUM Perf Events
         perf_path = os.path.join(directory, filename.replace(".txt", ".perf"))
         perf_stats = {"cache-references": 0, "cache-misses": 0, 
                       "L1-dcache-load-misses": 0, "LLC-load-misses": 0}
@@ -103,54 +108,59 @@ else:
     
     summary.columns = ["Algo", "Threshold", "WP", "Threads", "AvgTime", "StdTime", "AvgRefs", "AvgMisses", "AvgL1", "AvgLLC"]
 
-    # 3. Compute Secondary Metrics
+    # 3. Compute Metrics
     summary["LLC_Per_Op"] = summary["AvgLLC"] / NUM_OPS
     summary["Miss_Ratio"] = (summary["AvgMisses"] / summary["AvgRefs"].replace(0, np.nan)) * 100
     summary["L1_Intensity"] = summary["AvgL1"] / summary["AvgTime"]
 
     plt.style.use('seaborn-v0_8-muted')
     
+    ALGO_STYLES = [
+        ("FCDS", "#1f77b4", "o"), 
+        ("Concurrent", "#d62728", "s"),
+        ("Concurrent-NUMA", "#2ca02c", "D")
+    ]
+
     for wp in sorted(summary["WP"].unique()):
         wp_df = summary[summary["WP"] == wp]
         all_thresholds = sorted(wp_df["Threshold"].unique())
         x_indices = np.arange(len(all_thresholds))
-        bar_width = 0.35
+        bar_width = 0.25
         t_used = wp_df["Threads"].iloc[0]
 
-        # --- PLOT 1: RUNTIME PERFORMANCE (Line Plot vs Threshold) ---
+        # --- PLOT 1: RUNTIME PERFORMANCE (3 Curves) ---
         plt.figure(figsize=(10, 5), dpi=100)
-        for algo, color, marker in [("FCDS", "#1f77b4", "o"), ("Concurrent", "#d62728", "s")]:
+        for algo, color, marker in ALGO_STYLES:
             subset = wp_df[wp_df["Algo"] == algo].sort_values("Threshold")
             if subset.empty: continue
             plt.fill_between(subset["Threshold"], subset["AvgTime"] - subset["StdTime"], 
-                             subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.15)
+                             subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.1)
             plt.plot(subset["Threshold"], subset["AvgTime"], color=color, marker=marker, linewidth=2, label=algo)
         
-        plt.title(f"Impact of Insertion Threshold (Write Prob: {wp}, Threads: {t_used})", fontweight='bold')
-        plt.xlabel("Threshold Insertion Value")
+        plt.title(f"Insertion Threshold Impact (WP: {wp}, Threads: {t_used})", fontweight='bold')
+        plt.xlabel("Threshold Value")
         plt.ylabel("Execution Time (ms)")
         plt.grid(True, alpha=0.3)
         plt.legend()
         plt.savefig(f"runtime_threshold_wp_{wp}.png")
         plt.close()
 
-        # --- PLOT 2: CACHE ANALYSIS DASHBOARD (Bar Plot vs Threshold) ---
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6), dpi=100)
+        # --- PLOT 2: CACHE ANALYSIS DASHBOARD (3-Way Bar Chart) ---
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6), dpi=100)
         
         metrics_to_plot = [
-            ("L1_Intensity", "L1-dcache Miss Intensity", "Misses / ms", ax1),
-            ("Miss_Ratio", "Total Cache Miss Ratio", "Miss %", ax2),
-            ("LLC_Per_Op", "LLC Misses per Operation", "Misses / Op", ax3)
+            ("L1_Intensity", "L1 Miss Intensity", "Misses / ms", ax1),
+            ("Miss_Ratio", "Cache Miss Ratio", "Miss %", ax2),
+            ("LLC_Per_Op", "LLC Misses per Op", "Misses / Op", ax3)
         ]
 
         for col_name, title, ylabel, ax in metrics_to_plot:
             pivot = wp_df.pivot(index="Threshold", columns="Algo", values=col_name).reindex(all_thresholds).fillna(0)
             
-            fcds_vals = pivot["FCDS"] if "FCDS" in pivot.columns else [0]*len(all_thresholds)
-            conc_vals = pivot["Concurrent"] if "Concurrent" in pivot.columns else [0]*len(all_thresholds)
-
-            ax.bar(x_indices - bar_width/2, fcds_vals, bar_width, label='FCDS', color="#1f77b4", edgecolor='white')
-            ax.bar(x_indices + bar_width/2, conc_vals, bar_width, label='Concurrent', color="#d62728", edgecolor='white')
+            for i, (algo, color, _) in enumerate(ALGO_STYLES):
+                if algo in pivot.columns:
+                    ax.bar(x_indices + (i - 1) * bar_width, pivot[algo], bar_width, 
+                           label=algo, color=color, edgecolor='white', alpha=0.8)
 
             ax.set_title(title, fontweight='bold', pad=10)
             ax.set_ylabel(ylabel)
@@ -159,9 +169,9 @@ else:
             ax.grid(True, axis='y', alpha=0.3, linestyle='--')
             if ax == ax3: ax.legend()
 
-        plt.suptitle(f"Cache Performance vs Threshold (WP: {wp}, Threads: {t_used})", fontsize=16, fontweight='bold')
+        plt.suptitle(f"Cache Efficiency vs Threshold (WP: {wp})", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         plt.savefig(f"cache_threshold_analysis_wp_{wp}.png", bbox_inches='tight')
         plt.close()
 
-    print(f"Generation complete. Results are in {RESULTS_DIR}")
+    print(f"Generation complete for Threshold tests in {RESULTS_DIR}")

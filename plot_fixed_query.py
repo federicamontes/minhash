@@ -7,10 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # --- 1. Command Line Directory Handling ---
-# Usage: python3 plot_script.py [BASE_DIR]
-# Example: python3 plot_script.py ./build
-# Example: python3 plot_script.py ./my_experimental_data
-
 if len(sys.argv) > 1:
     BASE_DIR = sys.argv[1]
 else:
@@ -33,7 +29,14 @@ def parse_fixqr_files(directory):
         if not filename.endswith(".txt"):
             continue
             
-        algo = "FCDS" if filename.startswith("fcds") else "Concurrent"
+        # --- NEW PARSING LOGIC FOR 3 VARIANTS ---
+        if filename.startswith("fcds"):
+            algo = "FCDS"
+        elif "numa" in filename:
+            algo = "Concurrent-NUMA"
+        else:
+            algo = "Concurrent"
+
         w_match = re.search(r"workers(\d+)", filename)
         q_match = re.search(r"queries(\d+)", filename)
         
@@ -73,51 +76,60 @@ else:
     # 3. Normalization: Calculate insertions per millisecond (Throughput)
     summary["NormalizedIns"] = summary["AvgIns"] / summary["AvgTime"]
 
-    # 4. Align data using pivot to prevent broadcasting errors
+    # 4. Align data using pivot for 3 algorithms
     pivot_norm = summary.pivot(index=["Queries", "Workers"], columns="Algo", values="NormalizedIns").fillna(0).reset_index()
     pivot_norm = pivot_norm.sort_values("Queries")
 
     # 5. Setup Figure
     plt.style.use('seaborn-v0_8-muted')
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), dpi=120)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 7), dpi=120)
     
     # Master X-axis data
     q_vals = pivot_norm["Queries"].values
     x_labels = [f"{q}q / {w}w" for w, q in zip(pivot_norm["Workers"], pivot_norm["Queries"])]
     x_indices = np.arange(len(q_vals))
 
-    # --- LEFT PLOT: Execution Time ---
-    for algo, color, marker in [("FCDS", "#1f77b4", "o"), ("Concurrent", "#d62728", "s")]:
+    # Style Configuration
+    ALGO_STYLES = [
+        ("FCDS", "#1f77b4", "o"), 
+        ("Concurrent", "#d62728", "s"),
+        ("Concurrent-NUMA", "#2ca02c", "D")
+    ]
+
+    # --- LEFT PLOT: Execution Time (3 Curves) ---
+    for algo, color, marker in ALGO_STYLES:
         subset = summary[summary["Algo"] == algo].sort_values("Queries")
         if subset.empty: continue
         ax1.fill_between(subset["Queries"], subset["AvgTime"] - subset["StdTime"], 
                          subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.15)
         ax1.plot(subset["Queries"], subset["AvgTime"], color=color, marker=marker, 
-                 linewidth=2, label=algo, markeredgecolor='white')
+                 linewidth=2, label=algo, markeredgecolor='white', markersize=8)
 
     ax1.set_title("Total Execution Time", fontsize=14, fontweight='bold')
     ax1.set_ylabel("Time (ms)", fontsize=12)
+    ax1.set_xlabel("Query Configuration", fontsize=12)
     ax1.set_xticks(q_vals)
-    ax1.set_xticklabels(x_labels)
+    ax1.set_xticklabels(x_labels, rotation=15)
     ax1.grid(True, ls="--", alpha=0.6)
     ax1.legend()
 
-    # --- RIGHT PLOT: Normalized Insertions (Insertions / ms) ---
-    bar_width = 0.35
-    fcds_vals = pivot_norm["FCDS"] if "FCDS" in pivot_norm.columns else np.zeros(len(pivot_norm))
-    conc_vals = pivot_norm["Concurrent"] if "Concurrent" in pivot_norm.columns else np.zeros(len(pivot_norm))
-
-    ax2.bar(x_indices - bar_width/2, fcds_vals, bar_width, label='FCDS', color="#1f77b4", alpha=0.8)
-    ax2.bar(x_indices + bar_width/2, conc_vals, bar_width, label='Concurrent', color="#d62728", alpha=0.8)
+    # --- RIGHT PLOT: Normalized Insertions (3 Histograms/Bars) ---
+    bar_width = 0.25 # Reduced width for 3 bars
+    
+    for i, (algo, color, _) in enumerate(ALGO_STYLES):
+        if algo in pivot_norm.columns:
+            ax2.bar(x_indices + (i - 1) * bar_width, pivot_norm[algo], bar_width, 
+                   label=algo, color=color, alpha=0.8, edgecolor='black', linewidth=0.5)
 
     ax2.set_title("Insertion Throughput (Normalized)", fontsize=14, fontweight='bold')
     ax2.set_ylabel("Insertions per ms", fontsize=12)
+    ax2.set_xlabel("Query Configuration", fontsize=12)
     ax2.set_xticks(x_indices)
-    ax2.set_xticklabels(x_labels)
+    ax2.set_xticklabels(x_labels, rotation=15)
     ax2.grid(True, axis='y', ls="--", alpha=0.6)
     ax2.legend()
 
     plt.tight_layout()
     plt.savefig("plot_fixed_query_normalized_performance.png")
-    print("Saved combined plot: plot_qr_normalized_performance.png")
+    print("Saved combined plot: plot_fixed_query_normalized_performance.png")
     plt.show()

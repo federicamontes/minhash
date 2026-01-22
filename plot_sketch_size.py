@@ -8,12 +8,7 @@ import numpy as np
 
 NUM_OPS = 1000000
 
-
 # --- 1. Command Line Directory Handling ---
-# Usage: python3 plot_script.py [BASE_DIR]
-# Example: python3 plot_script.py ./build
-# Example: python3 plot_script.py ./my_experimental_data
-
 if len(sys.argv) > 1:
     BASE_DIR = sys.argv[1]
 else:
@@ -22,7 +17,6 @@ else:
 # Define which sub-test directory this specific script targets
 SUB_DIR = "test_sketch_size" 
 RESULTS_DIR = os.path.join(BASE_DIR, SUB_DIR)
-
 
 def parse_files(directory):
     data = []
@@ -36,8 +30,14 @@ def parse_files(directory):
         if not filename.endswith(".txt"):
             continue
             
-        algo = "FCDS" if filename.startswith("fcds") else "Concurrent"
-        # Updated Regex to find 'sz' instead of 'threads' for the X-axis
+        # --- CATEGORIZATION LOGIC ---
+        if filename.startswith("fcds"):
+            algo = "FCDS"
+        elif "numa" in filename:
+            algo = "Concurrent-NUMA"
+        else:
+            algo = "Concurrent"
+
         size_match = re.search(r"sz(\d+)", filename)
         wp_match = re.search(r"wp([\d.]+)", filename)
         threads_match = re.search(r"threads(\d+)", filename)
@@ -58,7 +58,7 @@ def parse_files(directory):
             if time_match:
                 elapsed_time = float(time_match.group(1))
 
-        # 2. Extract and SUM Hybrid Perf Events
+        # 2. Extract Perf Events
         perf_path = os.path.join(directory, filename.replace(".txt", ".perf"))
         perf_stats = {"cache-references": 0, "cache-misses": 0, 
                       "L1-dcache-load-misses": 0, "LLC-load-misses": 0}
@@ -111,45 +111,53 @@ else:
 
     plt.style.use('seaborn-v0_8-muted')
     
+    # Configuration for 3-way analysis
+    ALGO_STYLES = [
+        ("FCDS", "#1f77b4", "o"), 
+        ("Concurrent", "#d62728", "s"),
+        ("Concurrent-NUMA", "#2ca02c", "D")
+    ]
+
     for wp in sorted(summary["WP"].unique()):
         wp_df = summary[summary["WP"] == wp]
         all_sizes = sorted(wp_df["Size"].unique())
         x_indices = np.arange(len(all_sizes))
-        bar_width = 0.35
+        bar_width = 0.25
         t_used = wp_df["Threads"].iloc[0]
 
-        # --- PLOT 1: RUNTIME PERFORMANCE (Line Plot vs Sketch Size) ---
+        # --- PLOT 1: RUNTIME PERFORMANCE (3 Curves) ---
         plt.figure(figsize=(10, 5), dpi=100)
-        for algo, color, marker in [("FCDS", "#1f77b4", "o"), ("Concurrent", "#d62728", "s")]:
+        for algo, color, marker in ALGO_STYLES:
             subset = wp_df[wp_df["Algo"] == algo].sort_values("Size")
+            if subset.empty: continue
             plt.fill_between(subset["Size"], subset["AvgTime"] - subset["StdTime"], 
-                             subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.15)
+                             subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.1)
             plt.plot(subset["Size"], subset["AvgTime"], color=color, marker=marker, linewidth=2, label=algo)
         
-        plt.title(f"Scaling Sketch Size (Write Prob: {wp}, Threads: {t_used})", fontweight='bold')
-        plt.xlabel("Sketch Size (Number of Elements)")
+        plt.title(f"Sketch Size Scaling (WP: {wp}, Threads: {t_used})", fontweight='bold')
+        plt.xlabel("Sketch Size (Capacity)")
         plt.ylabel("Execution Time (ms)")
         plt.grid(True, alpha=0.3)
         plt.legend()
         plt.savefig(f"runtime_size_wp_{wp}.png")
         plt.close()
 
-        # --- PLOT 2: CACHE ANALYSIS DASHBOARD (Bar Plot vs Sketch Size) ---
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6), dpi=100)
+        # --- PLOT 2: CACHE ANALYSIS DASHBOARD (Grouped Histograms) ---
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6), dpi=100)
         
         metrics_to_plot = [
-            ("L1_Intensity", "L1-dcache Miss Intensity", "Misses / ms", ax1),
-            ("Miss_Ratio", "Total Cache Miss Ratio", "Miss %", ax2),
-            ("LLC_Per_Op", "LLC Misses per Operation", "Misses / Op", ax3)
+            ("L1_Intensity", "L1 Miss Intensity", "Misses / ms", ax1),
+            ("Miss_Ratio", "Cache Miss Ratio", "Miss %", ax2),
+            ("LLC_Per_Op", "LLC Misses per Op", "Misses / Op", ax3)
         ]
 
         for col_name, title, ylabel, ax in metrics_to_plot:
             pivot = wp_df.pivot(index="Size", columns="Algo", values=col_name).reindex(all_sizes).fillna(0)
-            fcds_vals = pivot["FCDS"] if "FCDS" in pivot.columns else [0]*len(all_sizes)
-            conc_vals = pivot["Concurrent"] if "Concurrent" in pivot.columns else [0]*len(all_sizes)
-
-            ax.bar(x_indices - bar_width/2, fcds_vals, bar_width, label='FCDS', color="#1f77b4", edgecolor='white')
-            ax.bar(x_indices + bar_width/2, conc_vals, bar_width, label='Concurrent', color="#d62728", edgecolor='white')
+            
+            for i, (algo, color, _) in enumerate(ALGO_STYLES):
+                if algo in pivot.columns:
+                    ax.bar(x_indices + (i - 1) * bar_width, pivot[algo], bar_width, 
+                           label=algo, color=color, edgecolor='white', alpha=0.85)
 
             ax.set_title(title, fontweight='bold', pad=10)
             ax.set_ylabel(ylabel)
@@ -158,9 +166,9 @@ else:
             ax.grid(True, axis='y', alpha=0.3, linestyle='--')
             if ax == ax3: ax.legend()
 
-        plt.suptitle(f"Cache Performance vs Sketch Size (WP: {wp}, Threads: {t_used})", fontsize=16, fontweight='bold')
+        plt.suptitle(f"Memory Hierarchy Performance vs Sketch Size (WP: {wp})", fontsize=16, fontweight='bold')
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         plt.savefig(f"cache_size_analysis_wp_{wp}.png", bbox_inches='tight')
         plt.show()
 
-    print("Generation complete. X-axis is now Sketch Size.")
+    print("Generation complete with 3-variant support.")

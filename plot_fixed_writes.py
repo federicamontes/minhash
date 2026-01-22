@@ -7,10 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # --- 1. Command Line Directory Handling ---
-# Usage: python3 plot_script.py [BASE_DIR]
-# Example: python3 plot_script.py ./build
-# Example: python3 plot_script.py ./my_experimental_data
-
 if len(sys.argv) > 1:
     BASE_DIR = sys.argv[1]
 else:
@@ -24,7 +20,6 @@ RESULTS_DIR = os.path.join(BASE_DIR, SUB_DIR)
 def parse_fixwr_files(directory):
     data = []
     total_time_re = re.compile(r"Total program elapsed time:\s+([\d.]+)\s+ms")
-    # Added regex for query count
     queries_count_re = re.compile(r"Number of queries\s+(\d+)")
     
     if not os.path.exists(directory):
@@ -35,7 +30,14 @@ def parse_fixwr_files(directory):
         if not filename.endswith(".txt"):
             continue
             
-        algo = "FCDS" if filename.startswith("fcds") else "Concurrent"
+        # --- NEW PARSING LOGIC FOR 3 VARIANTS ---
+        if filename.startswith("fcds"):
+            algo = "FCDS"
+        elif "numa" in filename:
+            algo = "Concurrent-NUMA"
+        else:
+            algo = "Concurrent"
+
         workers_match = re.search(r"workers(\d+)", filename)
         queries_match = re.search(r"queries(\d+)", filename)
         
@@ -81,7 +83,14 @@ else:
     plt.style.use('seaborn-v0_8-muted')
 
     # Create figure with two subplots side-by-side
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), dpi=120)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 7), dpi=120)
+
+    # Style Configuration
+    ALGO_STYLES = [
+        ("FCDS", "#1f77b4", "o"), 
+        ("Concurrent", "#d62728", "s"),
+        ("Concurrent-NUMA", "#2ca02c", "D")
+    ]
 
     # Prepare Shared X-Axis labels (Sorted by Workers)
     all_configs = summary[["Workers", "Queries"]].drop_duplicates().sort_values("Workers")
@@ -90,16 +99,16 @@ else:
     x_indices = np.arange(len(labels))
 
     # ==========================================
-    # LEFT PLOT: Your Original Ratio Plot
+    # LEFT PLOT: Execution Time (3 Curves)
     # ==========================================
-    for algo, color, marker in [("FCDS", "#1f77b4", "o"), ("Concurrent", "#d62728", "s")]:
+    for algo, color, marker in ALGO_STYLES:
         subset = summary[summary["Algo"] == algo].sort_values("Workers")
         if subset.empty: continue
         
         ax1.fill_between(subset["Workers"], 
                          subset["AvgTime"] - subset["StdTime"], 
                          subset["AvgTime"] + subset["StdTime"], 
-                         color=color, alpha=0.15)
+                         color=color, alpha=0.1)
         
         ax1.plot(subset["Workers"], subset["AvgTime"], 
                  color=color, marker=marker, markersize=9, 
@@ -107,27 +116,24 @@ else:
 
     ax1.set_xticks(all_workers)
     ax1.set_xticklabels(labels)
-    ax1.set_title("Fixed Load Performance: Execution Time", fontsize=14, fontweight='bold')
+    ax1.set_title("Execution Time Comparison", fontsize=14, fontweight='bold')
     ax1.set_xlabel("Thread Distribution (Workers / Queries)", fontsize=12)
     ax1.set_ylabel("Total Execution Time (ms)", fontsize=12)
     ax1.grid(True, ls="--", alpha=0.6)
     ax1.legend(frameon=True, facecolor='white')
 
     # ==========================================
-    # RIGHT PLOT: Normalized Query Histograms
+    # RIGHT PLOT: Normalized Throughput (3 Histograms)
     # ==========================================
-    bar_width = 0.35
-    
-    # Pivot data to ensure alignment even if an algo is missing a data point
+    bar_width = 0.25
     pivot_df = summary.pivot(index="Workers", columns="Algo", values="NormalizedQueries").reindex(all_workers).fillna(0)
     
-    fcds_vals = pivot_df["FCDS"] if "FCDS" in pivot_df.columns else np.zeros(len(all_workers))
-    conc_vals = pivot_df["Concurrent"] if "Concurrent" in pivot_df.columns else np.zeros(len(all_workers))
+    for i, (algo, color, _) in enumerate(ALGO_STYLES):
+        if algo in pivot_df.columns:
+            ax2.bar(x_indices + (i - 1) * bar_width, pivot_df[algo], bar_width, 
+                   label=algo, color=color, alpha=0.8, edgecolor='black', linewidth=0.5)
 
-    ax2.bar(x_indices - bar_width/2, fcds_vals, bar_width, label='FCDS', color="#1f77b4", alpha=0.8)
-    ax2.bar(x_indices + bar_width/2, conc_vals, bar_width, label='Concurrent', color="#d62728", alpha=0.8)
-
-    ax2.set_title("Normalized Throughput: Queries / ms", fontsize=14, fontweight='bold')
+    ax2.set_title("Throughput: Queries / ms", fontsize=14, fontweight='bold')
     ax2.set_xlabel("Thread Distribution (Workers / Queries)", fontsize=12)
     ax2.set_ylabel("Avg Queries per ms", fontsize=12)
     ax2.set_xticks(x_indices)
