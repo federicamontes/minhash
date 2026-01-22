@@ -34,7 +34,7 @@ for SIZE in "${SKETCH_SIZES[@]}"; do
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
             # Base Filenames
             BASE_FCDS="fcds_sz${SIZE}_wp${WP}_run${RUN}"
-            BASE_CONC="conc_sz_numa${SIZE}_wp${WP}_run${RUN}"
+            BASE_CONC="conc_numa_sz_${SIZE}_wp${WP}_run${RUN}"
 
             # --- FCDS ---
             "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SIZE" "$INITIAL_SIZE" "$MAX_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1

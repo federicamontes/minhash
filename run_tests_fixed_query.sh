@@ -107,7 +107,7 @@ for cfg in "${CONFIGS[@]}"; do
     # --------------------
     for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
         CMD=(
-            "${TEST_DIR}/test_conc_fix_qr_numa"
+            "${TEST_DIR}/test_conc_fix_qr"
             "$NUM_QUERIES"
             "$SKETCH_SIZE"
             "$INITIAL_SIZE"
@@ -119,7 +119,7 @@ for cfg in "${CONFIGS[@]}"; do
             "$NUMA"
         )
 
-        OUT_FILE="${OUTPUT_DIR}/conc_fixqr_q${NUM_QUERIES}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_alg${ALGORITHM}_workers${THREADS}_queries${NUM_QUERY_THREADS}_run${RUN}.txt"
+        OUT_FILE="${OUTPUT_DIR}/conc_fixqr_numa_q${NUM_QUERIES}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_alg${ALGORITHM}_workers${THREADS}_queries${NUM_QUERY_THREADS}_run${RUN}.txt"
 
         echo "Running: ${CMD[*]}"
         "${CMD[@]}" > "$OUT_FILE" 2>&1

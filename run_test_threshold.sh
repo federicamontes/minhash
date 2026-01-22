@@ -47,7 +47,7 @@ for THRESH in "${THRESHOLDS[@]}"; do
             fi
 
             # --- CONCURRENT TEST ---
-            BASE_CONC="conc_thresh_numa${THRESH}_ops${NUM_OPS}_wp${WP}_threads${MAX_THREADS}_run${RUN}"
+            BASE_CONC="conc_numa_thresh_${THRESH}_ops${NUM_OPS}_wp${WP}_threads${MAX_THREADS}_run${RUN}"
             
             # Run test and capture program output
             "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$MAX_THREADS" "$THRESH" "$ALGORITHM" "$WP" "$HASH_COEFF" "$NUMA" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
