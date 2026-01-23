@@ -14,6 +14,9 @@ INITIAL_SIZE=0
 HASH_COEFF=2
 ALGORITHM=1
 
+NUMA=$(numactl --hardware | grep "available:" | awk '{print $2}')
+echo "NUMA=$NUMA"
+
 ./compile.sh fcds
 ./compile.sh concurrent
 
@@ -45,7 +48,7 @@ for NUM_OPS in "${OPS_LIST[@]}"; do
 
             # CONCURRENT TEST (Same filename pattern as original script)
             BASE_CONC="conc_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_alg${ALGORITHM}_wp${WP}_threads${MAX_THREADS}_run${RUN}"
-            "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$MAX_THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
+            "${TEST_DIR}/test_conc_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$MAX_THREADS" "$THRESHOLD_INSERTION" "$ALGORITHM" "$WP" "$HASH_COEFF" "$NUMA" > "${OUTPUT_DIR}/${BASE_CONC}.txt" 2>&1
             
         done
     done
