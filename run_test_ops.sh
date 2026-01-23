@@ -30,18 +30,18 @@ for NUM_OPS in "${OPS_LIST[@]}"; do
         
         # --- 1. SERIAL TEST (Run once per configuration to save time) ---
         # Filename pattern maintained for Python script compatibility
-        BASE_SER="test_serial_wp${WP}_ops${NUM_OPS}"
-        echo "  [Serial] Running WP $WP..."
-        "${TEST_DIR}/test_serial_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_SER}.txt" 2>&1
+        #BASE_SER="test_serial_wp${WP}_ops${NUM_OPS}"
+        #echo "  [Serial] Running WP $WP..."
+        #"${TEST_DIR}/test_serial" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_SER}.txt" 2>&1
 
         # --- 2. CONCURRENT RUNS ---
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
             
             # FCDS TEST (Same filename pattern as original script)
-            if [ "$MAX_THREADS" -gt 2 ]; then
-                BASE_FCDS="fcds_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_wp${WP}_threads${MAX_THREADS}_run${RUN}"
-                "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$MAX_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
-            fi
+            #if [ "$MAX_THREADS" -gt 2 ]; then
+            #    BASE_FCDS="fcds_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_wp${WP}_threads${MAX_THREADS}_run${RUN}"
+            #    "${TEST_DIR}/test_fcds_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$MAX_THREADS" "$THRESHOLD_INSERTION" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_FCDS}.txt" 2>&1
+            #fi
 
             # CONCURRENT TEST (Same filename pattern as original script)
             BASE_CONC="conc_prob_ops${NUM_OPS}_size${SKETCH_SIZE}_init${INITIAL_SIZE}_b${THRESHOLD_INSERTION}_alg${ALGORITHM}_wp${WP}_threads${MAX_THREADS}_run${RUN}"
