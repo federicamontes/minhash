@@ -307,6 +307,7 @@ int main(int argc, const char*argv[]) {
     targs[i].startsize = current_start;
     targs[i].sketch = sketch;
     targs[i].algorithm = algorithm;
+    targs[i].core_id = i % num_cores;
     node = numa_node_of_cpu(targs[i].core_id); 
     targs[i].sketch_id = node + 1;  
     //targs[i].sketch_id = (i % n_sketches) + 1;  
@@ -314,7 +315,6 @@ int main(int argc, const char*argv[]) {
     if(n_thread_per_sketch == threads_per_sketch) {n_thread_per_sketch = 0; current_sketch_id++;}
 
 
-    targs[i].core_id = i % num_cores;
 
     // Get the start time
     gettimeofday(&writer_start, NULL);
