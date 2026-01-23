@@ -8,17 +8,17 @@
 struct minhash_configuration conf = {
     .sketch_size = 128,          /// Number of hash functions / sketch size
     .prime_modulus = (1ULL << 31) - 1,       /// Large prime for hashing (M)
-    .hash_type = 0,        /// ID for hash function pointer
+    .hash_type = 1,        /// ID for hash function pointer
     .init_size = 0,                 /// Initial elements to insert (optional)
-    .k = 5,
+    .k = 2,
 };
 
 
 int main(int argc, const char*argv[]) {
 
-    if (argc < 4) {
+    if (argc < 6) {
         fprintf(stderr, 
-            "Parameter error! Make sure to pass <N: (int) number of insertions ,sketch_size: (int) size of the sketch, init_size: (int) starting size of set \n");
+            "Parameter error! Make sure to pass <N: (int) number of insertions ,sketch_size: (int) size of the sketch, init_size: (int) starting size of set, prob: (double) probability of insertion, k_coefficient: (int) coefficient k for k-wise hash function \n");
         exit(1);
     }
 
@@ -36,14 +36,17 @@ int main(int argc, const char*argv[]) {
     }
 
     long startsize = strtol(argv[3], &endptr, 10);
-    if (*endptr != '\0' || startsize <= 0) {
+    if (*endptr != '\0' || startsize < 0) {
         fprintf(stderr, "Starting size of set must be greater than zero!\n");
         exit(1);
     }
     
+    double prob = parse_double(argv[4], "probability", 0);
+    long k_coefficient = parse_arg(argv[5], "hash coefficient", 1);
+        
     conf.sketch_size = (uint64_t) ssize;
     if (startsize > 0) conf.init_size = (uint64_t) startsize;
-
+    conf.k = k_coefficient;
 
     read_configuration(conf);
 
@@ -55,13 +58,21 @@ int main(int argc, const char*argv[]) {
     minhash_init(&sketch, hash_functions, conf.sketch_size, conf.init_size, conf.hash_type);
 
     struct timeval start, end;
-
+    srand(time(NULL));
     // Get the start time
     gettimeofday(&start, NULL);
 
     volatile uint32_t i;
     for (i = 0; i < n_inserts; i++) {
-        insert(sketch, i+startsize);
+        if (rand() < prob*RAND_MAX) {
+            insert(sketch, i+startsize);
+        } else {
+            query(sketch, sketch);
+        }
+    
+    
+
+
     }
 
     // Get the end time

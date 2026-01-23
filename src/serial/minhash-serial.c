@@ -21,6 +21,6 @@ float query(minhash_sketch *sketch, minhash_sketch *otherSketch) {
 		if (IS_EQUAL(sketch->sketch[i], otherSketch->sketch[i]))
 			count++;
 	}
-    fprintf(stderr, "[query] actual count %d\n", count);
+    //fprintf(stderr, "[query] actual count %d\n", count);
 	return count/(float)sketch->size;
 }
