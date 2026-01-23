@@ -98,8 +98,8 @@ void * hash_functions_init(uint64_t hf_id, uint64_t size, uint32_t prime_modulus
     uint64_t i;
     switch (hf_id) {
         case 1:
-            printf("Kwise hash\n");
-            kwise_hash *k_hash_functions;
+        
+            ;kwise_hash *k_hash_functions;
             k_hash_functions = malloc(size * sizeof(kwise_hash));
             if (k_hash_functions == NULL) {
                 fprintf(stderr, "Error in malloc() when allocating kwise hash functions\n");
