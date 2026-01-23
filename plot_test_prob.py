@@ -25,7 +25,6 @@ def parse_files(directory):
     # Regex Patterns
     total_time_re = re.compile(r"Total program elapsed time:\s+([\d.]+)\s+ms")
     serial_time_re = re.compile(r"Elapsed time:\s+([\d.]+)\s+ms")
-    # Updated WP regex to avoid trailing dots/punctuation
     wp_regex = re.compile(r"wp([\d.]+)")
     
     if not os.path.exists(directory):
@@ -40,12 +39,10 @@ def parse_files(directory):
         if not wp_match:
             continue
             
-        # Clean the string: remove a trailing dot if the regex captured it
         wp_str = wp_match.group(1).rstrip('.')
         try:
             wp_val = float(wp_str)
         except ValueError:
-            print(f"  [Skip] Could not parse WP from filename: {filename}")
             continue
 
         txt_path = os.path.join(directory, filename)
@@ -202,52 +199,56 @@ for wp in unique_wps:
     x_indices = np.arange(len(all_threads))
     bar_width = 0.25
 
+    # Plot 1: Runtime WITHOUT Serial
     plt.figure(figsize=(10, 5), dpi=100)
-    
-    # Plot Serial Line
-    if wp in serial_baseline_map:
-        val = serial_baseline_map[wp]
-        plt.axhline(y=val, color='black', linestyle=':', linewidth=2, label=f'Serial Baseline ({val:.1f}ms)', zorder=2)
-
     for algo, color, marker in ALGO_STYLES:
         subset = wp_df[wp_df["Algo"] == algo].sort_values("Threads")
         if subset.empty: continue
         plt.fill_between(subset["Threads"], subset["AvgTime"] - subset["StdTime"], 
                          subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.1)
-        plt.plot(subset["Threads"], subset["AvgTime"], color=color, marker=marker, 
-                linewidth=2, label=algo, zorder=3)
-    
-    plt.title(f"Runtime Performance Comparison (WP: {wp})")
-    plt.xlabel("Threads")
-    plt.ylabel("Execution Time (ms)")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+        plt.plot(subset["Threads"], subset["AvgTime"], color=color, marker=marker, linewidth=2, label=algo)
+    plt.title(f"Runtime Performance (WP: {wp})")
+    plt.xlabel("Threads"); plt.ylabel("Execution Time (ms)")
+    plt.grid(True, alpha=0.3); plt.legend()
     plt.savefig(f"runtime_wp_{wp}.png")
     plt.close()
 
-    # Dashboard
+    # Plot 2: Runtime WITH Serial
+    plt.figure(figsize=(10, 5), dpi=100)
+    if wp in serial_baseline_map:
+        val = serial_baseline_map[wp]
+        plt.axhline(y=val, color='black', linestyle=':', linewidth=2, label=f'Serial Baseline ({val:.1f}ms)', zorder=2)
+    for algo, color, marker in ALGO_STYLES:
+        subset = wp_df[wp_df["Algo"] == algo].sort_values("Threads")
+        if subset.empty: continue
+        plt.fill_between(subset["Threads"], subset["AvgTime"] - subset["StdTime"], 
+                         subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.1)
+        plt.plot(subset["Threads"], subset["AvgTime"], color=color, marker=marker, linewidth=2, label=algo, zorder=3)
+    plt.title(f"Runtime Performance with Serial (WP: {wp})")
+    plt.xlabel("Threads"); plt.ylabel("Execution Time (ms)")
+    plt.grid(True, alpha=0.3); plt.legend()
+    plt.savefig(f"runtime_wp_{wp}_serial.png")
+    plt.close()
+
+    # Plot 3: Cache Dashboard
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6), dpi=100)
     metrics_to_plot = [
         ("LLC_Per_Op", "LLC Misses per Operation", "Misses / Op", ax1),
         ("Miss_Ratio", "Total Cache Miss Ratio", "Miss %", ax2),
         ("L1_Intensity", "L1-dcache Miss Intensity", "Misses / ms", ax3)
     ]
-
     for col_name, title, ylabel, ax in metrics_to_plot:
         pivot = wp_df.pivot(index="Threads", columns="Algo", values=col_name).reindex(all_threads).fillna(0)
         for i, (algo, color, _) in enumerate(ALGO_STYLES):
             if algo in pivot.columns:
-                ax.bar(x_indices + (i - 1) * bar_width, pivot[algo], bar_width, 
-                       label=algo, color=color, edgecolor='white', linewidth=0.5)
-        ax.set_title(title, fontweight='bold', pad=10)
-        ax.set_ylabel(ylabel)
-        ax.set_xticks(x_indices)
-        ax.set_xticklabels(all_threads)
+                ax.bar(x_indices + (i - 1) * bar_width, pivot[algo], bar_width, label=algo, color=color, edgecolor='white', linewidth=0.5)
+        ax.set_title(title, fontweight='bold', pad=10); ax.set_ylabel(ylabel)
+        ax.set_xticks(x_indices); ax.set_xticklabels(all_threads)
         ax.grid(True, axis='y', alpha=0.3, linestyle='--')
         if ax == ax3: ax.legend(loc='upper right')
-
     plt.suptitle(f"Multi-Variant Cache Analysis (WP: {wp})", fontsize=16, fontweight='bold')
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(f"cache_analysis_wp_{wp}.png")
+    plt.close()
 
-print(f"\nProcessing complete. Check for 'N/A' in table if serial files are missing.")
+print(f"\nProcessing complete. Generated 2 runtime plots, cache dashboard, and summary tables.")
