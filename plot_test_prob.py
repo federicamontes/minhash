@@ -13,23 +13,59 @@ NUM_OPS = 1000000
 if len(sys.argv) > 1:
     BASE_DIR = sys.argv[1]
 else:
-    BASE_DIR = "results-100k-ops"  
+    BASE_DIR = "results-1M-ops"  
 
 SUB_DIR = "test_prob" 
 RESULTS_DIR = os.path.join(BASE_DIR, SUB_DIR)
 
 def parse_files(directory):
     data = []
+    serial_results = []
+    
+    # Regex Patterns
     total_time_re = re.compile(r"Total program elapsed time:\s+([\d.]+)\s+ms")
+    serial_time_re = re.compile(r"Elapsed time:\s+([\d.]+)\s+ms")
+    # Updated WP regex to avoid trailing dots/punctuation
+    wp_regex = re.compile(r"wp([\d.]+)")
     
     if not os.path.exists(directory):
         print(f"Error: Directory {directory} not found.")
-        return pd.DataFrame()
+        return pd.DataFrame(), {}
 
-    for filename in os.listdir(directory):
-        if not filename.endswith(".txt"):
+    all_files = os.listdir(directory)
+    print(f"Scanning {len(all_files)} files in {directory}...")
+
+    for filename in all_files:
+        wp_match = wp_regex.search(filename)
+        if not wp_match:
             continue
             
+        # Clean the string: remove a trailing dot if the regex captured it
+        wp_str = wp_match.group(1).rstrip('.')
+        try:
+            wp_val = float(wp_str)
+        except ValueError:
+            print(f"  [Skip] Could not parse WP from filename: {filename}")
+            continue
+
+        txt_path = os.path.join(directory, filename)
+
+        # --- CASE 1: SERIAL ---
+        if "serial" in filename.lower():
+            try:
+                with open(txt_path, 'r') as f:
+                    content = f.read()
+                    s_match = serial_time_re.search(content)
+                    if s_match:
+                        val = float(s_match.group(1))
+                        serial_results.append({"WP": wp_val, "Time": val})
+            except: pass
+            continue
+
+        # --- CASE 2: CONCURRENT ---
+        if not filename.endswith(".txt"):
+            continue
+
         if filename.startswith("fcds"):
             algo = "FCDS"
         elif "numa" in filename:
@@ -38,49 +74,40 @@ def parse_files(directory):
             algo = "Concurrent"
 
         threads_match = re.search(r"threads(\d+)", filename)
-        wp_match = re.search(r"wp([\d.]+)", filename)
-        
-        if not threads_match or not wp_match:
+        if not threads_match:
             continue
             
         t_count = int(threads_match.group(1))
-        wp_val = float(wp_match.group(1))
 
         elapsed_time = None
-        txt_path = os.path.join(directory, filename)
-        with open(txt_path, 'r') as f:
-            content = f.read()
-            time_match = total_time_re.search(content)
-            if time_match:
-                elapsed_time = float(time_match.group(1))
+        try:
+            with open(txt_path, 'r') as f:
+                content = f.read()
+                time_match = total_time_re.search(content)
+                if time_match:
+                    elapsed_time = float(time_match.group(1))
+        except: continue
 
+        # Perf Stats Parsing
         perf_path = os.path.join(directory, filename.replace(".txt", ".perf"))
-        perf_stats = {
-            "cache-references": 0,
-            "cache-misses": 0,
-            "L1-dcache-load-misses": 0,
-            "LLC-load-misses": 0
-        }
+        perf_stats = {"cache-references": 0, "cache-misses": 0, "L1-dcache-load-misses": 0, "LLC-load-misses": 0}
         
         if os.path.exists(perf_path):
-            with open(perf_path, 'r') as pf:
-                for line in pf:
-                    if line.startswith("#") or not line.strip():
-                        continue
-                    parts = line.split(',')
-                    if len(parts) < 3:
-                        continue
-                    raw_val = parts[0].strip()
-                    event_name = parts[2].strip()
-
-                    if raw_val != "<not supported>":
-                        try:
-                            val = int(raw_val)
-                            for metric in perf_stats.keys():
-                                if metric in event_name:
-                                    perf_stats[metric] += val
-                        except ValueError:
-                            continue
+            try:
+                with open(perf_path, 'r') as pf:
+                    for line in pf:
+                        if line.startswith("#") or not line.strip(): continue
+                        parts = line.split(',')
+                        if len(parts) < 3: continue
+                        raw_val = parts[0].strip()
+                        event_name = parts[2].strip()
+                        if raw_val != "<not supported>":
+                            try:
+                                val = int(raw_val)
+                                for metric in perf_stats.keys():
+                                    if metric in event_name: perf_stats[metric] += val
+                            except ValueError: continue
+            except: pass
 
         if elapsed_time is not None:
             data.append({
@@ -91,13 +118,16 @@ def parse_files(directory):
                 "LLCMisses": perf_stats["LLC-load-misses"]
             })
                 
-    return pd.DataFrame(data)
+    ser_df = pd.DataFrame(serial_results)
+    serial_map = ser_df.groupby("WP")["Time"].mean().to_dict() if not ser_df.empty else {}
+    
+    return pd.DataFrame(data), serial_map
 
 # 1. Load data
-df = parse_files(RESULTS_DIR)
+df, serial_baseline_map = parse_files(RESULTS_DIR)
 
 if df.empty:
-    print(f"No data found in {RESULTS_DIR}. Check if .perf files exist.")
+    print(f"No concurrent data found in {RESULTS_DIR}.")
     sys.exit(1)
 
 # 2. Aggregation
@@ -125,37 +155,38 @@ for wp in unique_wps:
     print("╟" + "─"*105 + "╢")
     
     wp_table = summary[summary["WP"] == wp].sort_values(["Threads", "Algo"])
-    
     for _, row in wp_table.iterrows():
         print(f"║ {row['Algo']:<18} ║ {int(row['Threads']):<4} ║ {row['AvgTime']:<10.2f} ║ "
               f"{row['Throughput (Mops/s)']:<12.3f} ║ {row['Miss_Ratio']:<8.2f} ║ "
               f"{row['LLC_Per_Op']:<8.3f} ║ {row['L1_Intensity']:<8.1f} ║")
     print("╚" + "═"*105 + "╝")
 
-# --- 5. NEW: SUMMARY TABLE FOR MAX THREADS ACROSS ALL WP ---
+# --- 5. SCALABILITY SUMMARY TABLE ---
 max_threads = summary["Threads"].max()
-print("\n" + "╔" + "═"*105 + "╗")
-print(f"║ SCALABILITY SUMMARY: MAXIMUM THREADS ({max_threads}) ACROSS ALL WP {' ':<32} ║")
-print("╠" + "═"*105 + "╣")
-print(f"║ {'WP':<6} ║ {'ALGORITHM':<18} ║ {'THROUGHPUT':<12} ║ {'MISS %':<8} ║ {'LLC/OP':<8} ║ {'L1 INT':<8} ║ {'SPEEDUP*':<10} ║")
-print("╟" + "─"*105 + "╢")
+print("\n" + "╔" + "═"*120 + "╗")
+print(f"║ SCALABILITY SUMMARY: MAX THREADS ({max_threads}) ACROSS ALL WP {' ':<42} ║")
+print("╠" + "═"*120 + "╣")
+print(f"║ {'WP':<6} ║ {'ALGORITHM':<18} ║ {'THROUGHPUT':<12} ║ {'MISS %':<8} ║ {'LLC/OP':<8} ║ {'SPD UP(REL)*':<13} ║ {'SPD UP(SER)':<11} ║")
+print("╟" + "─"*120 + "╢")
 
 max_thread_df = summary[summary["Threads"] == max_threads].sort_values(["WP", "Algo"])
 
 for wp in unique_wps:
     wp_max = max_thread_df[max_thread_df["WP"] == wp]
-    # Calculate relative speedup vs first algorithm in list for that WP
+    if wp_max.empty: continue
     base_throughput = wp_max["Throughput (Mops/s)"].iloc[0]
+    serial_time = serial_baseline_map.get(wp, None)
     
     for _, row in wp_max.iterrows():
-        speedup = row['Throughput (Mops/s)'] / base_throughput
-        print(f"║ {row['WP']:<6.2f} ║ {row['Algo']:<18} ║ {row['Throughput (Mops/s)']:<12.3f} ║ "
-              f"{row['Miss_Ratio']:<8.2f} ║ {row['LLC_Per_Op']:<8.3f} ║ {row['L1_Intensity']:<8.1f} ║ {speedup:<10.2f} ║")
-    if wp != unique_wps[-1]:
-        print("╟" + "─"*105 + "╢")
+        rel_speedup = row['Throughput (Mops/s)'] / base_throughput
+        ser_speedup_str = f"{serial_time / row['AvgTime']:<11.2f}" if (serial_time and row['AvgTime'] > 0) else f"{'N/A':<11}"
 
-print("╚" + "═"*105 + "╝")
-print("*Speedup relative to the first algorithm listed for each WP.")
+        print(f"║ {row['WP']:<6.2f} ║ {row['Algo']:<18} ║ {row['Throughput (Mops/s)']:<12.3f} ║ "
+              f"{row['Miss_Ratio']:<8.2f} ║ {row['LLC_Per_Op']:<8.3f} ║ {rel_speedup:<13.2f} ║ {ser_speedup_str} ║")
+    if wp != unique_wps[-1]:
+        print("╟" + "─"*120 + "╢")
+
+print("╚" + "═"*120 + "╝")
 
 # --- 6. PLOTTING ---
 plt.style.use('seaborn-v0_8-muted')
@@ -171,15 +202,20 @@ for wp in unique_wps:
     x_indices = np.arange(len(all_threads))
     bar_width = 0.25
 
-    # Plot 1: Runtime
     plt.figure(figsize=(10, 5), dpi=100)
+    
+    # Plot Serial Line
+    if wp in serial_baseline_map:
+        val = serial_baseline_map[wp]
+        plt.axhline(y=val, color='black', linestyle=':', linewidth=2, label=f'Serial Baseline ({val:.1f}ms)', zorder=2)
+
     for algo, color, marker in ALGO_STYLES:
         subset = wp_df[wp_df["Algo"] == algo].sort_values("Threads")
         if subset.empty: continue
         plt.fill_between(subset["Threads"], subset["AvgTime"] - subset["StdTime"], 
                          subset["AvgTime"] + subset["StdTime"], color=color, alpha=0.1)
         plt.plot(subset["Threads"], subset["AvgTime"], color=color, marker=marker, 
-                linewidth=2, label=algo)
+                linewidth=2, label=algo, zorder=3)
     
     plt.title(f"Runtime Performance Comparison (WP: {wp})")
     plt.xlabel("Threads")
@@ -189,7 +225,7 @@ for wp in unique_wps:
     plt.savefig(f"runtime_wp_{wp}.png")
     plt.close()
 
-    # Plot 2: Dashboard
+    # Dashboard
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6), dpi=100)
     metrics_to_plot = [
         ("LLC_Per_Op", "LLC Misses per Operation", "Misses / Op", ax1),
@@ -212,6 +248,6 @@ for wp in unique_wps:
 
     plt.suptitle(f"Multi-Variant Cache Analysis (WP: {wp})", fontsize=16, fontweight='bold')
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    plt.savefig(f"cache_analysis_wp_{wp}.png", bbox_inches='tight')
+    plt.savefig(f"cache_analysis_wp_{wp}.png")
 
-print(f"\nProcessing complete. Graphs and tables generated from {RESULTS_DIR}")
+print(f"\nProcessing complete. Check for 'N/A' in table if serial files are missing.")
