@@ -165,8 +165,8 @@ int main(int argc, const char*argv[]) {
     pthread_t threads[conf.N]; // consider #writers + propagator
     thread_arg_t targs[conf.N]; 
 
-    uint64_t chunk_size = n_ops / conf.N;
-    uint64_t remainder = n_ops % conf.N;
+    uint64_t chunk_size = n_ops / (conf.N - 1);
+    uint64_t remainder = n_ops % (conf.N - 1);
     uint64_t current_start = startsize;
     uint64_t inserts_for_thread = chunk_size;
 
@@ -188,6 +188,27 @@ int main(int argc, const char*argv[]) {
 
     /** launch writer threads */
     for (i = 1; i < conf.N-1; i++) {
+    
+    
+    
+            // determine work size and starting position for thread i
+	if (i < remainder + 1) {
+		// First 'remainder' threads get the base chunk plus one
+	    inserts_for_thread = chunk_size + 1;
+		
+		//  start position is offset by the work done by previous threads.
+		// The previous 'i' threads each got (chunk_size + 1).
+	    current_start = startsize + ((i-1) * (chunk_size + 1));
+	} else {
+		// Remaining threads get only the base chunk size
+	    inserts_for_thread = chunk_size;
+		
+		//  start position is calculated as:
+		// (Work of the 'remainder' threads) + (Work of the preceding 'chunk_size' threads)
+	    current_start = startsize + 
+			(remainder * (chunk_size + 1)) + 
+			(((i-1) - remainder) * chunk_size);
+	}
 
         
         targs[i].tid = i;
@@ -207,8 +228,19 @@ int main(int argc, const char*argv[]) {
     }
     
     
+    if (i < remainder + 1) {
+        inserts_for_thread = chunk_size + 1;
+    
+        current_start = startsize + ((i-1) * (chunk_size + 1));
+    } else {
+        inserts_for_thread = chunk_size;
+        current_start = startsize + 
+                        (remainder * (chunk_size + 1)) + // Total work of the first remainder threads
+                        (((i-1) - remainder) * chunk_size);  // total work of the preceding chunk_size threads
+    }
+    
     targs[i].tid = i;
-    targs[i].n_inserts = remainder;
+    targs[i].n_inserts = inserts_for_thread;
     targs[i].startsize = current_start;
     targs[i].sketch = sketch;
     targs[i].prob      = prob;
