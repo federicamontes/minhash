@@ -35,7 +35,7 @@ for NUM_OPS in "${OPS_LIST[@]}"; do
         # Filename pattern maintained for Python script compatibility
         BASE_SER="test_serial_wp${WP}_ops${NUM_OPS}"
         echo "  [Serial] Running WP $WP..."
-        "${TEST_DIR}/test_serial_prob" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_SER}.txt" 2>&1
+        "${TEST_DIR}/test_serial" "$NUM_OPS" "$SKETCH_SIZE" "$INITIAL_SIZE" "$WP" "$HASH_COEFF" > "${OUTPUT_DIR}/${BASE_SER}.txt" 2>&1
 
         # --- 2. CONCURRENT RUNS ---
         for ((RUN=1; RUN<=NUM_RUNS; RUN++)); do
